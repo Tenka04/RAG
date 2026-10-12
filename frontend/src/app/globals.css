@@ -961,3 +961,61 @@ input, textarea, select {
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
   }
 }
+
+/* ==========================================================================
+   Mono Style Aesthetics & Utilities ("Assist Me" Precision Theme)
+   ========================================================================== */
+
+.mono-text {
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+}
+
+.mono-input {
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.assist-me-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.mono-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.mono-arrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.gpt-toast-alert {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  z-index: 60;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  letter-spacing: -0.01em;
+}

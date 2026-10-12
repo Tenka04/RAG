@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Deep RAG • Intelligence Assistant",
-  description: "Next-generation Retrieval-Augmented Generation powered by ChromaDB and neural models.",
+  title: "Assist Me • AI Knowledge Assistant",
+  description: "Monochrome precision RAG assistant powered by ChromaDB and neural retrieval.",
 };
 
 export default function RootLayout({
