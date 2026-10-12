@@ -1,0 +1,13 @@
+ACME CORP EMPLOYEE HANDBOOK & COMPANY POLICY (2026 EDITION)
+
+1. WORKING HOURS & REMOTE WORK
+All Acme Corp full-time employees work standard core hours from 9:00 AM to 5:00 PM local time. Flexible remote work is permitted up to three days per week with manager approval. Employees working remotely must maintain active status on company communication channels during core hours.
+
+2. ANNUAL PAID LEAVE (PTO)
+Full-time team members accrue 24 days of paid time off (PTO) annually. Unused PTO may roll over up to a maximum cap of 5 days into the following calendar year. Extended leave requests exceeding two consecutive weeks require at least 30 days advance notice to the People Operations department.
+
+3. HARDWARE & EQUIPMENT ALLOWANCE
+Upon joining, each engineering staff member is issued a choice of an M-series laptop or an NVIDIA RTX workstation. Every team member receives an annual technology stipend of $1,200 for home office ergonomics, monitors, and approved software tools.
+
+4. HEALTH AND WELLNESS BENEFITS
+Acme Corp provides comprehensive health, dental, and vision insurance with 100% employer-covered premiums for individual employees. Additionally, an annual $600 wellness reimbursement covers gym memberships, athletic equipment, or mental health app subscriptions.
