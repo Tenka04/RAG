@@ -44,58 +44,65 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Model Picker */}
-        <div style={{ position: "relative" }}>
-          <div
+        {/* ChatGPT Model Selector */}
+        <div className="model-picker-container">
+          <button
             className="model-picker-btn"
             onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+            type="button"
           >
-            <span>Assist Me</span>
-            <span className="model-picker-tag mono-text">[{selectedModelObj.id}]</span>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <span className="model-title-text">Assist Me</span>
+            <span className="model-badge-sub">{selectedModelObj.id.replace(":cloud", "").replace("llama", "")}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="6 9 12 15 18 9" />
             </svg>
-          </div>
+          </button>
 
           {modelDropdownOpen && (
-            <div className="model-dropdown-menu">
-              {models.map((m) => (
-                <div
-                  key={m.id}
-                  className={`model-menu-item ${m.id === activeModel ? "selected" : ""}`}
-                  onClick={() => {
-                    onSelectModel(m.id);
-                    setModelDropdownOpen(false);
-                  }}
-                >
-                  <div>
-                    <div className="model-item-title mono-text">{m.name}</div>
-                    <div className="model-item-desc">{m.desc}</div>
-                  </div>
-                  {m.id === activeModel && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="dropdown-backdrop" onClick={() => setModelDropdownOpen(false)} />
+              <div className="model-dropdown-menu">
+                <div className="model-menu-heading">Model Selection</div>
+                {models.map((m) => (
+                  <button
+                    key={m.id}
+                    className={`model-menu-item ${m.id === activeModel ? "selected" : ""}`}
+                    onClick={() => {
+                      onSelectModel(m.id);
+                      setModelDropdownOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <div className="model-item-text">
+                      <div className="model-item-title">{m.name}</div>
+                      <div className="model-item-desc">{m.desc}</div>
+                    </div>
+                    {m.id === activeModel && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
 
       <div className="header-right">
         <button
-          className="sidebar-icon-btn"
+          className="header-action-btn"
           onClick={onUploadClick}
-          title="Add documents"
+          title="Upload knowledge files"
           type="button"
         >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
+          <span>Add Files</span>
         </button>
       </div>
     </header>

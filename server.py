@@ -97,6 +97,10 @@ def ingest_samples():
     """Ingest sample documents from ./sample_docs directory."""
     sample_dir = Path("./sample_docs")
     if not sample_dir.exists():
+        sample_dir = Path(__file__).parent / "sample_docs"
+    if not sample_dir.exists():
+        sample_dir = Path(__file__).parent.parent / "sample_docs"
+    if not sample_dir.exists():
         raise HTTPException(status_code=404, detail="sample_docs directory not found")
 
     total_chunks = 0

@@ -23,7 +23,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     <div className="gpt-modal-overlay" onClick={onClose}>
       <div className="gpt-modal-box" onClick={(e) => e.stopPropagation()}>
         <div className="modal-title-row">
-          <div className="modal-main-title mono-text">Add to Knowledge Base</div>
+          <div className="modal-main-title">Add to Knowledge Base</div>
           <button className="sidebar-icon-btn" onClick={onClose} type="button">
             ✕
           </button>
@@ -43,8 +43,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             style={{ display: "none" }}
           />
           <div style={{ fontSize: "28px" }}>📁</div>
-          <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-primary)" }} className="mono-text">
-            {isUploading ? "CHUNK & EMBED IN PROGRESS..." : "SELECT OR DROP FILES HERE"}
+          <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-primary)" }}>
+            {isUploading ? "Chunking & vector indexing..." : "Click to select or drop files here"}
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
             Embedded and indexed for instant retrieval
@@ -53,12 +53,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
-            className="kb-action-btn mono-text"
+            className="kb-action-btn"
             style={{ width: "auto", padding: "8px 16px" }}
             onClick={onClose}
             type="button"
           >
-            DONE
+            Done
           </button>
         </div>
       </div>

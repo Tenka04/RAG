@@ -17,11 +17,13 @@ export const SourcesView: React.FC<SourcesViewProps> = ({ sources }) => {
       <div
         className="sources-header-pill"
         onClick={() => setExpanded(!expanded)}
-        title="Toggle retrieved context"
+        title="Toggle retrieved sources"
       >
-        <span className="mono-tag">SRC</span>
+        <span>📚</span>
         <span>{sources.length} sources referenced</span>
-        <span className="mono-arrow">{expanded ? "▲" : "▼"}</span>
+        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+          {expanded ? "Hide ▲" : "Inspect ▼"}
+        </span>
       </div>
 
       {expanded && (
@@ -30,10 +32,10 @@ export const SourcesView: React.FC<SourcesViewProps> = ({ sources }) => {
             <div key={idx} className="source-citation-card">
               <div className="source-card-top">
                 <span className="source-doc-name" title={src.metadata?.source}>
-                  {src.metadata?.source || `Source ${idx + 1}`}
+                  📄 {src.metadata?.source || `Source ${idx + 1}`}
                 </span>
-                <span className="source-score mono-text">
-                  {src.score ? `${Math.round(Number(src.score) * 100)}%` : "MATCH"}
+                <span className="source-score">
+                  {src.score ? `${Math.round(Number(src.score) * 100)}%` : ""}
                 </span>
               </div>
               <div className="source-card-preview">{src.content}</div>

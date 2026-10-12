@@ -40,6 +40,7 @@ export default function Home() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const currentSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
   const messages = currentSession?.messages || [];
@@ -61,7 +62,7 @@ export default function Home() {
         setStats(data);
       }
     } catch {
-      // Backend starting up
+      // Backend offline or starting
     }
   };
 
@@ -103,7 +104,7 @@ export default function Home() {
     }
   };
 
-  // Sample Documents
+  // Sample Documents Ingestion
   const handleIngestSamples = async () => {
     setIsIngestingSamples(true);
     try {
@@ -167,6 +168,15 @@ export default function Home() {
     }
   };
 
+  // Stop streaming
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsStreaming(false);
+  };
+
   // Send message and stream response
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
@@ -203,11 +213,14 @@ export default function Home() {
     );
 
     setIsStreaming(true);
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortController.signal,
         body: JSON.stringify({
           query,
           model: activeModel,
@@ -272,28 +285,42 @@ export default function Home() {
           }
         }
       }
-    } catch {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeSessionId
-            ? {
-                ...s,
-                messages: s.messages.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        content:
-                          m.content ||
-                          "⚠️ Could not reach the backend. Please start the server using `python server.py`.",
-                      }
-                    : m
-                ),
-              }
-            : s
-        )
-      );
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        // User stopped generation
+      } else {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === activeSessionId
+              ? {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === assistantId
+                      ? {
+                          ...m,
+                          content:
+                            m.content ||
+                            "⚠️ Could not reach backend server. Make sure `python server.py` is running on port 8000.",
+                        }
+                      : m
+                  ),
+                }
+              : s
+          )
+        );
+      }
     } finally {
       setIsStreaming(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  // Regenerate last assistant response
+  const handleRegenerate = () => {
+    if (messages.length === 0 || isStreaming) return;
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUserMessage) {
+      handleSendMessage(lastUserMessage.content);
     }
   };
 
@@ -327,7 +354,7 @@ export default function Home() {
         />
 
         {toastMessage && (
-          <div className="gpt-toast-alert mono-text">
+          <div className="gpt-toast-alert">
             {toastMessage}
           </div>
         )}
@@ -343,11 +370,12 @@ export default function Home() {
             />
           ) : (
             <div className="chat-scroll-content">
-              {messages.map((msg) => (
+              {messages.map((msg, index) => (
                 <MessageItem
                   key={msg.id}
                   message={msg}
-                  isStreaming={isStreaming && msg.role === "assistant"}
+                  isStreaming={isStreaming && msg.role === "assistant" && index === messages.length - 1}
+                  onRegenerate={msg.role === "assistant" && index === messages.length - 1 ? handleRegenerate : undefined}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -360,6 +388,7 @@ export default function Home() {
             input={input}
             setInput={setInput}
             onSend={() => handleSendMessage()}
+            onStop={handleStopStreaming}
             isStreaming={isStreaming}
             onAttachClick={() => setUploadModalOpen(true)}
           />

@@ -6,6 +6,7 @@ interface ChatInputProps {
   input: string;
   setInput: (val: string) => void;
   onSend: () => void;
+  onStop?: () => void;
   isStreaming: boolean;
   onAttachClick: () => void;
   placeholder?: string;
@@ -15,23 +16,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   input,
   setInput,
   onSend,
+  onStop,
   isStreaming,
   onAttachClick,
-  placeholder = "Ask Assist Me anything about your documents...",
+  placeholder = "Message Assist Me...",
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
     }
   }, [input]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onSend();
+      if (!isStreaming && input.trim()) {
+        onSend();
+      }
     }
   };
 
@@ -41,8 +45,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <button
           className="capsule-plus-btn"
           onClick={onAttachClick}
-          title="Add documents"
+          title="Add files or documents"
           type="button"
+          aria-label="Add files"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -53,29 +58,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <textarea
           ref={textareaRef}
           rows={1}
-          className="gpt-textarea mono-input"
+          className="gpt-textarea"
           placeholder={placeholder}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
         />
 
-        <button
-          className="gpt-send-btn"
-          onClick={onSend}
-          disabled={!input.trim() || isStreaming}
-          title="Send message"
-          type="button"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="12" y1="19" x2="12" y2="5" />
-            <polyline points="5 12 12 5 19 12" />
-          </svg>
-        </button>
+        {isStreaming ? (
+          <button
+            className="gpt-stop-btn"
+            onClick={onStop}
+            title="Stop generating"
+            type="button"
+            aria-label="Stop generating"
+          >
+            <div className="gpt-stop-square" />
+          </button>
+        ) : (
+          <button
+            className="gpt-send-btn"
+            onClick={onSend}
+            disabled={!input.trim()}
+            title="Send prompt"
+            type="button"
+            aria-label="Send prompt"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      <div className="gpt-disclaimer-text mono-text">
-        Assist Me strictly verifies responses with indexed knowledge base chunks.
+      <div className="gpt-disclaimer-text">
+        Assist Me can make mistakes. Verify important info from source documents.
       </div>
     </div>
   );
