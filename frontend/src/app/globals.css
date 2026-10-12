@@ -1,40 +1,34 @@
 /* ==========================================================================
-   ChatGPT Exact Theme & Design System (Dark Mode: #212121 & #171717)
+   Assist Me — Pure Monochrome & Monospace Technical Design System
    ========================================================================== */
 
 :root {
-  --bg-main: #212121;
-  --bg-sidebar: #171717;
-  --bg-sidebar-hover: #212121;
-  --bg-user-bubble: #2f2f2f;
-  --bg-input-box: #2f2f2f;
-  --bg-dropdown: #212121;
-  --bg-modal: #282828;
-  --bg-code-header: #181818;
-  --bg-code-body: #0d0d0d;
-  --bg-pill: #2a2a2a;
-  --bg-pill-hover: #333333;
+  --bg-black: #000000;
+  --bg-app: #080808;
+  --bg-sidebar: #0d0d0d;
+  --bg-surface: #141414;
+  --bg-surface-elevated: #1a1a1a;
+  --bg-surface-hover: #222222;
+  --bg-input: #121212;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.15);
-  --border-input: rgba(255, 255, 255, 0.06);
-  --border-input-focus: rgba(255, 255, 255, 0.25);
+  --border-dim: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.14);
+  --border-medium: rgba(255, 255, 255, 0.24);
+  --border-bright: rgba(255, 255, 255, 0.6);
 
-  --text-primary: #ececec;
-  --text-secondary: #b4b4b4;
-  --text-muted: #8e8e8e;
-  --text-subtle: #707070;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #888888;
+  --text-dim: #555555;
 
-  --send-btn-active-bg: #ffffff;
-  --send-btn-active-fg: #000000;
-  --send-btn-disabled-bg: #676767;
-  --send-btn-disabled-fg: #2f2f2f;
+  --accent-white: #ffffff;
+  --accent-black: #000000;
 
-  --status-green: #10a37f; /* OpenAI signature emerald */
-  --status-amber: #eab308;
+  --status-green: #22c55e;
+  --status-amber: #f59e0b;
+  --status-red: #ef4444;
 
-  --font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: var(--font-geist-mono), "SF Mono", "Fira Code", "Roboto Mono", Menlo, Monaco, Consolas, monospace;
 }
 
 * {
@@ -47,18 +41,27 @@ html,
 body {
   height: 100%;
   width: 100%;
-  background-color: var(--bg-main);
+  background-color: var(--bg-black);
   color: var(--text-primary);
-  font-family: var(--font-family);
+  font-family: var(--font-mono) !important;
+  font-size: 13.5px;
+  line-height: 1.6;
+  letter-spacing: -0.015em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
 }
 
-/* Custom Minimal Scrollbar */
+/* All inputs, buttons, textareas strictly monospace */
+button, input, textarea, select, code, pre {
+  font-family: var(--font-mono) !important;
+  letter-spacing: inherit;
+}
+
+/* Custom Minimalist Dark Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -66,28 +69,25 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 9999px;
+  background: #333333;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: #555555;
 }
 
 button {
-  font-family: inherit;
   cursor: pointer;
   border: none;
   background: none;
   color: inherit;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition: all 0.15s ease;
 }
 
-input, textarea, select {
-  font-family: inherit;
-  color: inherit;
-  outline: none;
-  border: none;
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 
 /* ==========================================================================
@@ -98,25 +98,25 @@ input, textarea, select {
   display: flex;
   height: 100vh;
   width: 100vw;
-  background-color: var(--bg-main);
+  background-color: var(--bg-black);
   overflow: hidden;
   position: relative;
 }
 
 /* ==========================================================================
-   Sidebar (#171717)
+   Mono Sidebar (#0d0d0d)
    ========================================================================== */
 
 .gpt-sidebar {
-  width: 260px;
+  width: 270px;
   height: 100%;
   background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 0.25s cubic-bezier(0.2, 0, 0, 1), transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 50;
-  border-right: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .gpt-sidebar.closed {
@@ -131,71 +131,75 @@ input, textarea, select {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
+  border-bottom: 1px solid var(--border-dim);
 }
 
 .sidebar-icon-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  border: 1px solid transparent;
 }
 
 .sidebar-icon-btn:hover {
-  background-color: var(--bg-sidebar-hover);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
+  border-color: var(--border-subtle);
 }
 
-/* New Chat row */
+/* New Chat Button */
 .new-chat-row {
-  margin: 0 10px 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  padding: 12px 12px 6px;
 }
 
 .new-chat-button {
-  flex: 1;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px;
-  border-radius: 8px;
-  background-color: transparent;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  transition: background-color 0.15s;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .new-chat-button:hover {
-  background-color: var(--bg-sidebar-hover);
+  background-color: var(--bg-surface-elevated);
+  border-color: var(--border-medium);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
 .new-chat-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-/* History / Navigation Items */
+/* Scroll Area & Sessions */
 .sidebar-scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding: 0 10px 12px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
 .sidebar-group-title {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-subtle);
-  padding: 8px 10px 4px;
-  text-transform: capitalize;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 6px 4px 4px;
+  letter-spacing: 0.08em;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -205,17 +209,25 @@ input, textarea, select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 13.5px;
-  color: var(--text-primary);
+  padding: 7px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
   cursor: pointer;
-  position: relative;
-  text-align: left;
+  border: 1px solid transparent;
+  margin-bottom: 2px;
 }
 
-.chat-history-item:hover, .chat-history-item.active {
-  background-color: var(--bg-sidebar-hover);
+.chat-history-item:hover {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-dim);
+}
+
+.chat-history-item.active {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
 }
 
 .chat-history-title {
@@ -229,7 +241,8 @@ input, textarea, select {
   opacity: 0;
   color: var(--text-muted);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: 2px;
+  font-size: 11px;
 }
 
 .chat-history-item:hover .chat-delete-btn {
@@ -237,55 +250,50 @@ input, textarea, select {
 }
 
 .chat-delete-btn:hover {
-  color: #ef4444;
+  color: var(--status-red);
 }
 
-/* Knowledge Base Document List in Sidebar */
+/* Knowledge Base Box */
 .kb-card-sidebar {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-app);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  border-radius: 4px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.kb-stat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
 .kb-badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-  font-weight: 500;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: #1c1c1c;
+  color: #a0a0a0;
+  border: 1px solid var(--border-dim);
+  font-weight: 600;
 }
 
 .kb-action-btn {
   width: 100%;
   padding: 7px 10px;
-  background: var(--bg-sidebar-hover);
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-weight: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--text-secondary);
-  border: 1px solid transparent;
+  text-transform: uppercase;
 }
 
 .kb-action-btn:hover {
-  background: #2a2a2a;
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-medium);
   color: var(--text-primary);
-  border-color: var(--border-subtle);
 }
 
 .kb-doc-pill {
@@ -293,70 +301,68 @@ input, textarea, select {
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  border-radius: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-left: 2px solid #333333;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .kb-doc-pill:hover {
-  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
+  border-left-color: #ffffff;
 }
 
-/* Sidebar User Profile (Bottom) */
+/* Sidebar Footer Profile */
 .sidebar-footer-profile {
-  padding: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-dim);
+  background: var(--bg-sidebar);
 }
 
 .user-profile-btn {
-  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-}
-
-.user-profile-btn:hover {
-  background-color: var(--bg-sidebar-hover);
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
 }
 
 .user-avatar-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #3c3c3c;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #000000;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 13px;
-  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
 }
 
 .user-profile-info {
   flex: 1;
-  text-align: left;
 }
 
 .user-profile-name {
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.2;
+  letter-spacing: 0.02em;
 }
 
 .user-profile-sub {
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: var(--text-muted);
 }
 
 /* ==========================================================================
-   Main Chat Container (#212121)
+   Main Viewport
    ========================================================================== */
 
 .gpt-main {
@@ -364,68 +370,64 @@ input, textarea, select {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-main);
+  background-color: var(--bg-black);
   position: relative;
   overflow: hidden;
 }
 
-/* Top Navbar */
+/* Header */
 .gpt-header {
-  height: 52px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  border-bottom: 1px solid var(--border-dim);
+  background: rgba(8, 8, 8, 0.85);
+  backdrop-filter: blur(8px);
   z-index: 30;
-  flex-shrink: 0;
 }
 
-.header-left {
+.header-left, .header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ChatGPT Model Switcher dropdown button */
 .model-picker-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  font-size: 16px;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
-  cursor: pointer;
-  user-select: none;
+  letter-spacing: 0.02em;
 }
 
 .model-picker-btn:hover {
-  background-color: rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-medium);
 }
 
 .model-picker-tag {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  font-weight: 500;
 }
 
 .model-dropdown-menu {
   position: absolute;
-  top: 48px;
-  left: 56px;
-  background-color: var(--bg-dropdown);
+  top: 42px;
+  left: 0;
+  background-color: #111111;
   border: 1px solid var(--border-medium);
-  border-radius: 14px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
-  padding: 6px;
-  width: 290px;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+  padding: 4px;
+  width: 310px;
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -436,28 +438,30 @@ input, textarea, select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
   cursor: pointer;
-  text-align: left;
+  border: 1px solid transparent;
 }
 
 .model-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bg-surface-elevated);
+  border-color: var(--border-dim);
 }
 
 .model-menu-item.selected {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--bg-surface);
+  border-color: var(--border-subtle);
 }
 
 .model-item-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .model-item-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -476,20 +480,20 @@ input, textarea, select {
 
 .chat-scroll-content {
   width: 100%;
-  max-width: 768px;
+  max-width: 820px;
   margin: 0 auto;
-  padding: 20px 20px 180px;
+  padding: 24px 20px 180px;
   display: flex;
   flex-direction: column;
   gap: 24px;
   flex: 1;
 }
 
-/* ChatGPT Empty State (Centered "What can I help with?") */
+/* Empty Hero State */
 .empty-hero-container {
   margin: auto;
   width: 100%;
-  max-width: 768px;
+  max-width: 780px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -497,20 +501,31 @@ input, textarea, select {
   padding: 40px 20px;
 }
 
+.assist-me-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  padding: 3px 10px;
+  border-radius: 2px;
+  background: #141414;
+  border: 1px solid var(--border-medium);
+  color: #ffffff;
+  margin-bottom: 16px;
+}
+
 .empty-hero-title {
-  font-size: 30px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 28px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 24px;
   letter-spacing: -0.02em;
 }
 
 .empty-input-capsule-wrapper {
   width: 100%;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
-/* Quick Action Pills under empty prompt */
 .hero-pills-row {
   display: flex;
   flex-wrap: wrap;
@@ -522,89 +537,87 @@ input, textarea, select {
 .hero-pill-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 9999px;
-  background-color: var(--bg-pill);
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 4px;
+  background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  font-size: 13.5px;
+  font-size: 12px;
   color: var(--text-secondary);
   transition: all 0.15s ease;
 }
 
 .hero-pill-btn:hover {
-  background-color: var(--bg-pill-hover);
-  color: var(--text-primary);
+  background-color: var(--bg-surface-elevated);
+  color: #ffffff;
   border-color: var(--border-medium);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
-/* ==========================================================================
-   Message Rows (ChatGPT Exact Structure)
-   ========================================================================== */
-
+/* Message Rows */
 .msg-row {
   display: flex;
   width: 100%;
-  gap: 16px;
+  gap: 14px;
 }
 
-/* User Message: Right-Aligned Bubble */
 .msg-row.user {
   justify-content: flex-end;
 }
 
 .user-bubble {
-  background-color: var(--bg-user-bubble);
-  color: var(--text-primary);
-  padding: 10px 18px;
-  border-radius: 24px;
-  font-size: 15px;
-  line-height: 1.55;
-  max-width: 75%;
+  background-color: #141414;
+  border: 1px solid var(--border-subtle);
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 80%;
   word-break: break-word;
   white-space: pre-wrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* Assistant Message: Flat, Clean Typography with Spark Avatar */
 .msg-row.assistant {
   justify-content: flex-start;
   align-items: flex-start;
 }
 
 .assistant-spark-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   margin-top: 4px;
   color: #ffffff;
-  background: #000000;
+  background: #141414;
 }
 
 .assistant-content-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .assistant-text-content {
-  font-size: 15.5px;
+  font-size: 13.5px;
   line-height: 1.7;
   color: var(--text-primary);
   word-break: break-word;
   white-space: pre-wrap;
 }
 
-/* Markdown styling inside assistant message */
 .assistant-text-content p {
   margin-bottom: 12px;
 }
+
 .assistant-text-content p:last-child {
   margin-bottom: 0;
 }
@@ -612,90 +625,59 @@ input, textarea, select {
 .assistant-text-content h1,
 .assistant-text-content h2,
 .assistant-text-content h3 {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-top: 16px;
-  margin-bottom: 8px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
 }
 
 .assistant-text-content h3 {
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .assistant-text-content ul,
 .assistant-text-content ol {
-  margin-left: 20px;
+  margin-left: 18px;
   margin-bottom: 12px;
 }
 
 .assistant-text-content li {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .assistant-text-content blockquote {
-  border-left: 3px solid rgba(255, 255, 255, 0.3);
-  padding-left: 12px;
-  margin: 10px 0;
-  color: var(--text-secondary);
-  font-size: 14.5px;
+  border-left: 2px solid #555555;
+  padding-left: 10px;
+  margin: 8px 0;
+  color: #aaaaaa;
 }
 
 .assistant-text-content code {
   font-family: var(--font-mono);
-  font-size: 13.5px;
+  font-size: 12.5px;
   padding: 2px 5px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  background: #181818;
+  border: 1px solid var(--border-dim);
+  border-radius: 3px;
+  color: #f1f1f1;
 }
 
-/* ChatGPT Code Block with Top Bar */
-.code-block-wrapper {
-  margin: 14px 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: var(--bg-code-body);
-}
-
-.code-block-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-code-header);
-  padding: 8px 14px;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.copy-code-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.copy-code-btn:hover {
-  color: var(--text-primary);
-}
-
-/* ChatGPT Search-Style Sources / Citations */
+/* Citations & Sources (Mono Format) */
 .sources-carousel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .sources-header-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   width: fit-content;
@@ -705,22 +687,37 @@ input, textarea, select {
   color: var(--text-primary);
 }
 
+.mono-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: #1e1e1e;
+  color: #ffffff;
+  border: 1px solid var(--border-medium);
+}
+
+.mono-arrow {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
 .sources-cards-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 8px;
+  margin-top: 4px;
 }
 
 .source-citation-card {
-  background: var(--bg-user-bubble);
+  background: #101010;
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 4px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
-  transition: border-color 0.15s ease;
 }
 
 .source-citation-card:hover {
@@ -731,11 +728,11 @@ input, textarea, select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .source-doc-name {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -744,13 +741,13 @@ input, textarea, select {
 }
 
 .source-score {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--status-green);
-  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 .source-card-preview {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -759,47 +756,47 @@ input, textarea, select {
   overflow: hidden;
 }
 
-/* Assistant Bottom Action Bar (Copy, Good, Bad, Refresh) */
+/* Action Bar */
 .msg-action-bar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin-top: 4px;
 }
 
 .action-bar-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+  border: 1px solid transparent;
 }
 
 .action-bar-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
+  border-color: var(--border-dim);
 }
 
-/* Typing cursor */
 .gpt-typing-cursor {
   display: inline-block;
-  width: 8px;
-  height: 16px;
-  background-color: var(--text-primary);
+  width: 7px;
+  height: 14px;
+  background-color: #ffffff;
   margin-left: 4px;
   vertical-align: middle;
-  animation: gptCursorBlink 0.9s infinite;
+  animation: monoBlink 0.8s infinite;
 }
 
-@keyframes gptCursorBlink {
+@keyframes monoBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
 
 /* ==========================================================================
-   Bottom Input Container (#2f2f2f Capsule)
+   Bottom Input Capsule (#121212)
    ========================================================================== */
 
 .gpt-input-fixed-bar {
@@ -810,96 +807,112 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 20px 16px;
-  background: linear-gradient(to top, var(--bg-main) 60%, rgba(33, 33, 33, 0) 100%);
+  padding: 0 20px 14px;
+  background: linear-gradient(to top, var(--bg-black) 60%, transparent 100%);
   z-index: 20;
 }
 
 .gpt-input-capsule {
   width: 100%;
-  max-width: 768px;
-  background-color: var(--bg-input-box);
-  border: 1px solid var(--border-input);
-  border-radius: 26px;
+  max-width: 820px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
   display: flex;
   align-items: flex-end;
-  padding: 10px 14px;
+  padding: 8px 12px;
   gap: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.15s ease;
 }
 
 .gpt-input-capsule:focus-within {
-  border-color: var(--border-input-focus);
+  border-color: var(--border-bright);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.08);
 }
 
 .capsule-plus-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  border: 1px solid transparent;
   flex-shrink: 0;
 }
 
 .capsule-plus-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bg-surface);
   color: var(--text-primary);
+  border-color: var(--border-dim);
 }
 
 .gpt-textarea {
   flex: 1;
   background: transparent;
-  color: var(--text-primary);
-  font-size: 15px;
+  color: #ffffff;
+  font-size: 13.5px;
   line-height: 1.5;
   resize: none;
   max-height: 160px;
-  min-height: 24px;
-  padding: 4px 0;
+  min-height: 22px;
+  padding: 3px 0;
 }
 
 .gpt-textarea::placeholder {
-  color: var(--text-subtle);
+  color: #555555;
 }
 
-/* ChatGPT Send Button (Circle with Up Arrow) */
 .gpt-send-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background-color: var(--send-btn-active-bg);
-  color: var(--send-btn-active-fg);
-  transition: opacity 0.15s, background-color 0.15s;
+  background-color: #ffffff;
+  color: #000000;
+  transition: opacity 0.15s;
 }
 
 .gpt-send-btn:disabled {
-  background-color: var(--send-btn-disabled-bg);
-  color: var(--send-btn-disabled-fg);
-  opacity: 0.6;
+  background-color: #222222;
+  color: #555555;
+  opacity: 0.5;
 }
 
 .gpt-disclaimer-text {
-  font-size: 12px;
-  color: var(--text-subtle);
+  font-size: 11px;
+  color: var(--text-dim);
   margin-top: 8px;
   text-align: center;
+  letter-spacing: 0.02em;
 }
 
-/* ==========================================================================
-   Modals & Popovers
-   ========================================================================== */
+/* Toast */
+.gpt-toast-alert {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #141414;
+  border: 1px solid var(--border-medium);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 60;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+}
 
+/* Modal */
 .gpt-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -910,15 +923,15 @@ input, textarea, select {
 
 .gpt-modal-box {
   width: 100%;
-  max-width: 500px;
-  background: var(--bg-modal);
+  max-width: 480px;
+  background: #111111;
   border: 1px solid var(--border-medium);
-  border-radius: 16px;
-  padding: 22px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .modal-title-row {
@@ -928,27 +941,28 @@ input, textarea, select {
 }
 
 .modal-main-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.02em;
 }
 
 .gpt-upload-zone {
-  border: 2px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  padding: 28px 20px;
+  border: 1px dashed var(--border-medium);
+  border-radius: 4px;
+  padding: 24px 16px;
   text-align: center;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
+  gap: 8px;
+  background: #090909;
 }
 
 .gpt-upload-zone:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.02);
+  border-color: #ffffff;
+  background: #141414;
 }
 
 /* Responsive */
@@ -958,64 +972,6 @@ input, textarea, select {
     top: 0;
     bottom: 0;
     left: 0;
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
   }
-}
-
-/* ==========================================================================
-   Mono Style Aesthetics & Utilities ("Assist Me" Precision Theme)
-   ========================================================================== */
-
-.mono-text {
-  font-family: var(--font-mono);
-  letter-spacing: -0.01em;
-}
-
-.mono-input {
-  font-family: var(--font-mono);
-  font-size: 14px;
-}
-
-.assist-me-badge {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-}
-
-.mono-tag {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.mono-arrow {
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.gpt-toast-alert {
-  position: absolute;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #181818;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-size: 12px;
-  z-index: 60;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
-  letter-spacing: -0.01em;
 }
