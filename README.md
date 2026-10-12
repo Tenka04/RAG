@@ -14,23 +14,28 @@ A modern, production-grade Retrieval-Augmented Generation (RAG) system supportin
   - **Local**: `llama3.2:3b` and `llama3.2:1b` (100% offline, fits inside 4 GB VRAM).
   - **Cloud**: `gemma4:cloud` (Ollama's free cloud tier, fast datacenter execution).
 - **Dual Interfaces**:
-  - **Streamlit Web UI** (`app.py`): Real-time chat, drag-and-drop document upload, source context viewer, and model switcher.
-  - **Terminal CLI** (`cli.py`): Ingest, query, and chat directly from PowerShell or terminal.
+  - **Premium Next.js Web UI** (`frontend/`): ChatGPT-like dark OLED monochrome interface, real-time SSE streaming, collapsible sidebar, drag-and-drop document upload, and interactive source citation drawer.
+  - **Terminal CLI** (`cli.py`): Ingest, query, and chat directly from terminal.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Activate Environment
-```powershell
-.\venv\Scripts\Activate.ps1
+### 1. Start the FastAPI Backend
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+python server.py
 ```
+Backend API will start at `http://localhost:8000`.
 
-### 2. Launch the Web UI
-```powershell
-.\venv\Scripts\streamlit.exe run app.py
+### 2. Start the Next.js Frontend
+In a new terminal:
+```bash
+cd frontend
+npm run dev
 ```
-Open your browser at `http://localhost:8501`.
+Open your browser at `http://localhost:3000`.
 
 ### 3. Using the CLI
 - **View Knowledge Base Statistics**:

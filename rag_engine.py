@@ -178,6 +178,22 @@ class RAGEngine:
         )
         return full_prompt
 
+    def _generate_fallback_synthesis(self, query: str, sources: List[Dict[str, Any]]) -> str:
+        """Fallback synthesis when Ollama is offline or not installed."""
+        lines = [
+            "### 📄 Grounded Document Findings\n",
+            f"Here are the most relevant excerpts retrieved for: **\"{query}\"**\n\n"
+        ]
+        for i, src in enumerate(sources):
+            src_name = src.get("metadata", {}).get("source", f"Source {i+1}")
+            chunk_id = src.get("metadata", {}).get("chunk_id", i)
+            score = src.get("score", "N/A")
+            lines.append(f"**From `{src_name}` (Relevance: {score}):**\n")
+            lines.append(f"> {src['content'].strip()}\n\n")
+        
+        lines.append("\n---\n*💡 **Tip**: Ollama is offline. Run `ollama serve` and `ollama pull llama3.2:3b` to enable full conversational LLM generation.*")
+        return "".join(lines)
+
     def generate_response_stream(
         self,
         query: str,
@@ -218,12 +234,11 @@ class RAGEngine:
             yield {"type": "done"}
 
         except Exception as e:
-            err_msg = (
-                f"\n\n**Ollama Connection Notice:** Could not contact Ollama model `{active_model}`.\n"
-                f"Details: {str(e)}\n\n"
-                f"*Troubleshooting Tip*: Make sure the Ollama service is running (`ollama serve`) and the model is pulled (`ollama pull {active_model}`)."
-            )
-            yield {"type": "token", "token": err_msg}
+            fallback_text = self._generate_fallback_synthesis(query, sources)
+            # Stream the fallback text cleanly
+            words = fallback_text.split(" ")
+            for w in words:
+                yield {"type": "token", "token": w + " "}
             yield {"type": "done"}
 
     def query(self, query: str, top_k: int = 3, model_override: Optional[str] = None) -> Dict[str, Any]:
@@ -244,9 +259,9 @@ class RAGEngine:
                 "answer": res.get("response", ""),
                 "sources": sources
             }
-        except Exception as e:
+        except Exception:
             return {
-                "answer": f"Error communicating with Ollama ({active_model}): {e}",
+                "answer": self._generate_fallback_synthesis(query, sources),
                 "sources": sources
             }
 
