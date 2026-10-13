@@ -13,6 +13,9 @@ from typing import List, Dict, Any, Generator, Optional
 import chromadb
 from chromadb.config import Settings
 import ollama
+import json
+import requests
+
 
 # Ensure backend directory is in sys.path
 backend_dir = Path(__file__).resolve().parent
@@ -60,6 +63,13 @@ class RAGEngine:
         self.embedding_model = embedding_model or os.environ.get("OLLAMA_EMBED_MODEL", "all-minilm")
         self.init_time = time.time()
 
+        # OpenRouter Configuration (Supports OPENROUTER_API_KEY, OPEN_ROUTER_KEY, OPENROUTER_KEY)
+        self.openrouter_api_key = (
+            os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("OPEN_ROUTER_KEY")
+            or os.environ.get("OPENROUTER_KEY")
+        )
+
         # Initialize Ollama Client with Auth Bearer token if provided
         headers = {}
         if self.ollama_api_key:
@@ -86,6 +96,169 @@ class RAGEngine:
             return True
         except Exception:
             return False
+
+    def _is_openrouter_model(self, model: str) -> bool:
+        """Check if model targets OpenRouter (e.g. DeepSeek models)."""
+        if not model:
+            return False
+        m = model.strip().lower()
+        if m in ("deepseek", "deepseek-chat", "deepseek-r1", "deepseek/deepseek-chat", "deepseek/deepseek-r1"):
+            return True
+        if m.startswith("deepseek/") or m.startswith("openrouter/"):
+            return True
+        if "/" in m and self.openrouter_api_key:
+            return True
+        return False
+
+    def _resolve_openrouter_model(self, model: str) -> str:
+        """Resolve model name alias to canonical OpenRouter model slug."""
+        m = model.strip()
+        if m.startswith("openrouter/"):
+            m = m[len("openrouter/"):]
+        if m in ("deepseek", "deepseek-chat"):
+            return "deepseek/deepseek-chat"
+        if m == "deepseek-r1":
+            return "deepseek/deepseek-r1"
+        return m
+
+    def _generate_openrouter_stream(self, model: str, prompt: str) -> Generator[str, None, None]:
+        """Stream response tokens from OpenRouter API with provider fallback and reasoning support."""
+        if not self.openrouter_api_key:
+            raise ValueError("OpenRouter API key is not configured. Add OPEN_ROUTER_KEY in backend/.env")
+
+        target_model = self._resolve_openrouter_model(model)
+        headers = {
+            "Authorization": f"Bearer {self.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:3000",
+            "X-Title": "Assist Me RAG"
+        }
+        fallback_models = [target_model]
+        if target_model != "deepseek/deepseek-chat":
+            fallback_models.append("deepseek/deepseek-chat")
+        if target_model != "deepseek/deepseek-r1":
+            fallback_models.append("deepseek/deepseek-r1")
+
+        payload = {
+            "model": target_model,
+            "models": fallback_models,
+            "provider": {"allow_fallbacks": True},
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 2048,
+            "stream": True
+        }
+
+        response = None
+        for attempt in range(3):
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=45
+            )
+            if response.status_code == 429 and attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            break
+
+        if response is None or response.status_code != 200:
+            err_msg = response.text if response is not None else "No response"
+            raise RuntimeError(f"OpenRouter returned HTTP {response.status_code if response else 'ERR'}: {err_msg}")
+
+        in_reasoning = False
+        for line in response.iter_lines():
+            if not line:
+                continue
+            decoded = line.decode("utf-8")
+            if not decoded.startswith("data: "):
+                continue
+            data_str = decoded[6:].strip()
+            if data_str == "[DONE]":
+                break
+            try:
+                data = json.loads(data_str)
+                choices = data.get("choices", [])
+                if not choices:
+                    continue
+                delta = choices[0].get("delta", {})
+
+                # Handle DeepSeek R1 reasoning chain-of-thought
+                reasoning = delta.get("reasoning")
+                if reasoning:
+                    if not in_reasoning:
+                        in_reasoning = True
+                        yield "> **Thinking Process:**\n> "
+                    yield reasoning.replace("\n", "\n> ")
+
+                content = delta.get("content")
+                if content:
+                    if in_reasoning:
+                        in_reasoning = False
+                        yield "\n\n"
+                    yield content
+            except Exception:
+                continue
+
+    def _generate_openrouter_sync(self, model: str, prompt: str) -> str:
+        """Synchronously generate response from OpenRouter API."""
+        if not self.openrouter_api_key:
+            raise ValueError("OpenRouter API key is not configured. Add OPEN_ROUTER_KEY in backend/.env")
+
+        target_model = self._resolve_openrouter_model(model)
+        headers = {
+            "Authorization": f"Bearer {self.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:3000",
+            "X-Title": "Assist Me RAG"
+        }
+        fallback_models = [target_model]
+        if target_model != "deepseek/deepseek-chat":
+            fallback_models.append("deepseek/deepseek-chat")
+        if target_model != "deepseek/deepseek-r1":
+            fallback_models.append("deepseek/deepseek-r1")
+
+        payload = {
+            "model": target_model,
+            "models": fallback_models,
+            "provider": {"allow_fallbacks": True},
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 2048,
+            "stream": False
+        }
+
+        response = None
+        for attempt in range(3):
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=45
+            )
+            if response.status_code == 429 and attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            break
+
+        if response is None or response.status_code != 200:
+            err_msg = response.text if response is not None else "No response"
+            raise RuntimeError(f"OpenRouter returned HTTP {response.status_code if response else 'ERR'}: {err_msg}")
+
+        data = response.json()
+        choices = data.get("choices", [])
+        if not choices:
+            return ""
+
+        msg = choices[0].get("message", {})
+        content = msg.get("content", "")
+        reasoning = msg.get("reasoning")
+
+        if reasoning and not content:
+            return f"> **Thinking Process:**\n{reasoning}"
+        elif reasoning and content:
+            return f"> **Thinking Process:**\n{reasoning}\n\n{content}"
+        return content
+
 
     def _get_fallback_embedder(self):
         """Lazy load chromadb default embedding function (ONNX all-MiniLM-L6-v2) when needed."""
@@ -405,6 +578,17 @@ class RAGEngine:
             fallback_text = self._generate_fallback_synthesis(query, sources)
             for w in fallback_text.split(" "):
                 yield {"type": "token", "token": w + " "}
+        elif self._is_openrouter_model(active_model):
+            try:
+                for token in self._generate_openrouter_stream(active_model, prompt):
+                    yield {"type": "token", "token": token}
+            except Exception as e:
+                used_fallback = True
+                fallback_reason = str(e)
+                fallback_text = self._generate_fallback_synthesis(query, sources)
+                words = fallback_text.split(" ")
+                for w in words:
+                    yield {"type": "token", "token": w + " "}
         else:
             try:
                 stream = self.client.generate(
@@ -472,6 +656,19 @@ class RAGEngine:
         active_model = model_override or self.llm_model
         prompt = self.build_prompt(query, sources if sources else None)
 
+        if self._is_openrouter_model(active_model):
+            try:
+                ans = self._generate_openrouter_sync(active_model, prompt)
+                return {
+                    "answer": ans,
+                    "sources": sources
+                }
+            except Exception:
+                return {
+                    "answer": self._generate_fallback_synthesis(query, sources),
+                    "sources": sources
+                }
+
         try:
             res = self.client.generate(model=active_model, prompt=prompt, stream=False)
             return {
@@ -529,6 +726,7 @@ class RAGEngine:
             "is_cloud": "ollama.com" in self.ollama_host,
             "default_model": self.llm_model,
             "embedding_model": self.embedding_model,
+            "openrouter_configured": bool(self.openrouter_api_key),
             "persist_dir": self.persist_dir
         }
 

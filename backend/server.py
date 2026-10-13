@@ -135,7 +135,7 @@ class EmbedTestRequest(BaseModel):
 
 @app.get("/api/status")
 def get_status():
-    """Return database statistics, Ollama availability, and system state."""
+    """Return database statistics, Ollama availability, OpenRouter state, and system state."""
     stats = engine.get_stats()
     return {
         "status": "healthy",
@@ -145,6 +145,7 @@ def get_status():
         "ollama_online": stats["ollama_online"],
         "ollama_host": stats.get("ollama_host", "https://ollama.com"),
         "is_cloud": stats.get("is_cloud", True),
+        "openrouter_configured": stats.get("openrouter_configured", False),
         "default_model": engine.llm_model,
         "embedding_model": engine.embedding_model,
         "persist_dir": stats["persist_dir"]
@@ -153,8 +154,10 @@ def get_status():
 
 @app.get("/api/models")
 def get_models():
-    """Return available models supported by the connected Ollama provider."""
+    """Return available models supported by the system (OpenRouter DeepSeek, Ollama Cloud, and Local)."""
     models = [
+        {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3 (deepseek-chat)", "desc": "OpenRouter • SOTA Speed & Flagship Intelligence", "is_cloud": True},
+        {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (deepseek-r1)", "desc": "OpenRouter • Deep Chain-of-Thought Reasoning", "is_cloud": True},
         {"id": "gpt-oss:20b", "name": "Assist Me Cloud 20B (gpt-oss:20b)", "desc": "Free Ollama Cloud • Blazing fast", "is_cloud": True},
         {"id": "gemma4:31b", "name": "Gemma 4 31B (gemma4:31b)", "desc": "Free Ollama Cloud • Deep reasoning", "is_cloud": True},
         {"id": "gpt-oss:120b", "name": "GPT-OSS 120B (gpt-oss:120b)", "desc": "Free Ollama Cloud • Flagship intelligence", "is_cloud": True},
@@ -401,6 +404,7 @@ def get_system_diagnostics():
         pass
 
     masked_key = f"{engine.ollama_api_key[:6]}...{engine.ollama_api_key[-6:]}" if engine.ollama_api_key else "None"
+    masked_openrouter = f"{engine.openrouter_api_key[:8]}...{engine.openrouter_api_key[-4:]}" if engine.openrouter_api_key else "None"
 
     import chromadb
     return {
@@ -415,6 +419,8 @@ def get_system_diagnostics():
         "is_cloud": "ollama.com" in engine.ollama_host,
         "api_key_configured": bool(engine.ollama_api_key),
         "api_key_masked": masked_key,
+        "openrouter_configured": bool(engine.openrouter_api_key),
+        "openrouter_masked": masked_openrouter,
         "available_ollama_models": ollama_models,
         "default_llm_model": engine.llm_model,
         "embedding_model": engine.embedding_model,

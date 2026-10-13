@@ -58,6 +58,7 @@ export interface KBStats {
   ollama_online: boolean;
   ollama_host?: string;
   is_cloud?: boolean;
+  openrouter_configured?: boolean;
   default_model?: string;
   embedding_model?: string;
   collection_name?: string;
@@ -102,9 +103,12 @@ export interface SystemDiagnostics {
   is_cloud?: boolean;
   api_key_configured?: boolean;
   api_key_masked?: string;
+  openrouter_configured?: boolean;
+  openrouter_masked?: string;
   available_ollama_models: string[];
   default_llm_model: string;
   embedding_model: string;
   server_time: string;
   error_count: number;
 }
+
