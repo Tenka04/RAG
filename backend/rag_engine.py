@@ -1,9 +1,12 @@
 """
 RAG Engine: Vector Store (ChromaDB), Embedding, Retrieval, and Generation (Ollama)
+Equipped with Developer Telemetry, Embedding Inspection, and Diagnostics.
 """
 
 import os
+import time
 import uuid
+import math
 from pathlib import Path
 from typing import List, Dict, Any, Generator, Optional
 import chromadb
@@ -25,19 +28,20 @@ class RAGEngine:
         self.collection_name = collection_name
         self.embedding_model = embedding_model
         self.llm_model = llm_model
+        self.init_time = time.time()
 
         # Initialize persistent ChromaDB client
         os.makedirs(self.persist_dir, exist_ok=True)
         self.chroma_client = chromadb.PersistentClient(path=self.persist_dir)
-        
-        # Test if Ollama is accessible
-        self.ollama_available = self._check_ollama_available()
 
         # Get or create collection
         self.collection = self.chroma_client.get_or_create_collection(
             name=self.collection_name,
             metadata={"description": "RAG document embeddings collection"}
         )
+
+        # Default embedding fallback helper
+        self._fallback_embedder = None
 
     def _check_ollama_available(self) -> bool:
         """Check if Ollama service is running and accessible."""
@@ -47,18 +51,73 @@ class RAGEngine:
         except Exception:
             return False
 
+    def _get_fallback_embedder(self):
+        """Lazy load chromadb default embedding function when needed."""
+        if self._fallback_embedder is None:
+            try:
+                from chromadb.utils import embedding_functions
+                self._fallback_embedder = embedding_functions.DefaultEmbeddingFunction()
+            except Exception:
+                pass
+        return self._fallback_embedder
+
     def get_embedding(self, text: str) -> Optional[List[float]]:
-        """Generate embedding vector for a given text using Ollama if available."""
+        """Generate embedding vector for a given text using Ollama or Chroma default."""
         if self._check_ollama_available():
             try:
                 response = ollama.embeddings(
                     model=self.embedding_model,
                     prompt=text
                 )
-                return response.get("embedding")
+                emb = response.get("embedding")
+                if emb:
+                    return emb
             except Exception:
                 pass
+
+        # Fallback to Chroma's built-in ONNX embedding function if available
+        try:
+            embedder = self._get_fallback_embedder()
+            if embedder:
+                results = embedder([text])
+                if results and len(results) > 0:
+                    return [float(x) for x in results[0]]
+        except Exception:
+            pass
+
         return None
+
+    def test_embedding(self, text: str) -> Dict[str, Any]:
+        """
+        Developer Mode inspection: computes embedding for arbitrary text,
+        measuring latency, dimensions, norm, and sample float values.
+        """
+        t0 = time.time()
+        embedding = self.get_embedding(text)
+        latency_ms = round((time.time() - t0) * 1000, 2)
+
+        if embedding:
+            norm = math.sqrt(sum(x * x for x in embedding))
+            return {
+                "success": True,
+                "model": self.embedding_model if self._check_ollama_available() else "chroma-onnx-all-MiniLM-L6-v2",
+                "dimensions": len(embedding),
+                "norm": round(norm, 4),
+                "latency_ms": latency_ms,
+                "sample_vector": [round(x, 5) for x in embedding[:24]],
+                "text_length": len(text)
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Could not generate vector embedding. Ollama offline and ONNX fallback unavailable.",
+                "model": self.embedding_model,
+                "dimensions": 0,
+                "norm": 0.0,
+                "latency_ms": latency_ms,
+                "sample_vector": [],
+                "text_length": len(text)
+            }
 
     def ingest_file(self, file_path: str, chunk_size: int = 600, chunk_overlap: int = 100) -> int:
         """
@@ -81,9 +140,7 @@ class RAGEngine:
             chunk_content = chunk["content"]
             chunk_meta = chunk["metadata"]
             
-            # Ensure metadata values are strings, ints, floats, or bools for ChromaDB
             clean_meta = {k: str(v) if not isinstance(v, (int, float, bool, str)) else v for k, v in chunk_meta.items()}
-            
             doc_id = f"{filename}#chunk_{clean_meta.get('chunk_id', uuid.uuid4().hex[:8])}"
             
             documents.append(chunk_content)
@@ -104,7 +161,6 @@ class RAGEngine:
                 embeddings=embeddings
             )
         else:
-            # Fallback to Chroma's built-in ONNX embedding function
             self.collection.upsert(
                 documents=documents,
                 metadatas=metadatas,
@@ -113,17 +169,33 @@ class RAGEngine:
 
         return len(documents)
 
-    def retrieve(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+    def retrieve(self, query: str, top_k: int = 3) -> Dict[str, Any]:
         """
-        Retrieve the most relevant context chunks for a query.
+        Retrieve relevant context chunks with performance timing and raw distances.
+        Returns dictionary containing:
+          - chunks: list of retrieved documents
+          - retrieval_ms: latency of vector query
+          - embedding_ms: latency of query embedding
+          - query_embedding: raw query vector preview
         """
+        t_start = time.time()
+        retrieval_res = {
+            "chunks": [],
+            "retrieval_ms": 0.0,
+            "embedding_ms": 0.0,
+            "query_embedding": None
+        }
+
         if self.collection.count() == 0:
-            return []
+            retrieval_res["retrieval_ms"] = round((time.time() - t_start) * 1000, 2)
+            return retrieval_res
 
-        query_embedding = None
-        if self._check_ollama_available():
-            query_embedding = self.get_embedding(query)
+        t_embed = time.time()
+        query_embedding = self.get_embedding(query)
+        retrieval_res["embedding_ms"] = round((time.time() - t_embed) * 1000, 2)
+        retrieval_res["query_embedding"] = query_embedding
 
+        t_search = time.time()
         if query_embedding:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
@@ -134,21 +206,28 @@ class RAGEngine:
                 query_texts=[query],
                 n_results=min(top_k, self.collection.count())
             )
+        retrieval_res["retrieval_ms"] = round((time.time() - t_search) * 1000, 2)
 
         retrieved_docs = []
         if results and "documents" in results and results["documents"]:
             docs = results["documents"][0]
             metas = results.get("metadatas", [[]])[0]
             distances = results.get("distances", [[]])[0] if "distances" in results else [0.0] * len(docs)
+            ids = results.get("ids", [[]])[0] if "ids" in results else []
 
             for i in range(len(docs)):
+                raw_dist = distances[i] if i < len(distances) else 0.0
+                score = round(1.0 - raw_dist, 3) if raw_dist <= 1.0 else round(1.0 / (1.0 + raw_dist), 3)
                 retrieved_docs.append({
                     "content": docs[i],
                     "metadata": metas[i] if i < len(metas) else {},
-                    "score": round(1.0 - distances[i], 3) if i < len(distances) else 1.0
+                    "score": score,
+                    "raw_distance": round(raw_dist, 4),
+                    "chunk_id": ids[i] if i < len(ids) else f"chunk_{i}"
                 })
 
-        return retrieved_docs
+        retrieval_res["chunks"] = retrieved_docs
+        return retrieval_res
 
     def build_prompt(self, query: str, context_chunks: List[Dict[str, Any]]) -> str:
         """Construct a structured grounded prompt with source context."""
@@ -186,7 +265,6 @@ class RAGEngine:
         ]
         for i, src in enumerate(sources):
             src_name = src.get("metadata", {}).get("source", f"Source {i+1}")
-            chunk_id = src.get("metadata", {}).get("chunk_id", i)
             score = src.get("score", "N/A")
             lines.append(f"**From `{src_name}` (Relevance: {score}):**\n")
             lines.append(f"> {src['content'].strip()}\n\n")
@@ -201,13 +279,21 @@ class RAGEngine:
         model_override: Optional[str] = None
     ) -> Generator[Dict[str, Any], None, None]:
         """
-        Stream the generated answer while yielding retrieved sources.
+        Stream the generated answer while yielding retrieved sources and developer telemetry.
         Yields:
           - {"type": "sources", "sources": [...]}
           - {"type": "token", "token": "..."}
+          - {"type": "dev_telemetry", "telemetry": {...}}
           - {"type": "done"}
         """
-        sources = self.retrieve(query, top_k=top_k)
+        t_overall_start = time.time()
+        retrieval_data = self.retrieve(query, top_k=top_k)
+        sources = retrieval_data["chunks"]
+        retrieval_ms = retrieval_data["retrieval_ms"]
+        embedding_ms = retrieval_data["embedding_ms"]
+        query_embedding = retrieval_data["query_embedding"]
+
+        # Yield sources right away for UI display
         yield {"type": "sources", "sources": sources}
 
         if not sources:
@@ -215,11 +301,37 @@ class RAGEngine:
                 "type": "token",
                 "token": "No relevant documents found in the database. Please upload or ingest some documents first."
             }
+            total_time_ms = round((time.time() - t_overall_start) * 1000, 2)
+            yield {
+                "type": "dev_telemetry",
+                "telemetry": {
+                    "query": query,
+                    "total_time_ms": total_time_ms,
+                    "retrieval_time_ms": retrieval_ms,
+                    "embedding_time_ms": embedding_ms,
+                    "llm_time_ms": 0.0,
+                    "model_used": model_override or self.llm_model,
+                    "used_fallback": False,
+                    "fallback_reason": None,
+                    "prompt_preview": "No documents available for prompt context.",
+                    "query_embedding": {
+                        "model": self.embedding_model if self._check_ollama_available() else "chroma-default",
+                        "dimensions": len(query_embedding) if query_embedding else 0,
+                        "norm": round(math.sqrt(sum(x * x for x in query_embedding)), 4) if query_embedding else 0.0,
+                        "sample_values": [round(x, 4) for x in query_embedding[:16]] if query_embedding else [],
+                    },
+                    "chunks_retrieved_count": 0,
+                    "raw_chunks": []
+                }
+            }
             yield {"type": "done"}
             return
 
         active_model = model_override or self.llm_model
         prompt = self.build_prompt(query, sources)
+        t_llm_start = time.time()
+        used_fallback = False
+        fallback_reason = None
 
         try:
             stream = ollama.generate(
@@ -231,23 +343,62 @@ class RAGEngine:
                 token = chunk.get("response", "")
                 if token:
                     yield {"type": "token", "token": token}
-            yield {"type": "done"}
 
         except Exception as e:
+            used_fallback = True
+            fallback_reason = str(e)
             fallback_text = self._generate_fallback_synthesis(query, sources)
-            # Stream the fallback text cleanly
             words = fallback_text.split(" ")
             for w in words:
                 yield {"type": "token", "token": w + " "}
-            yield {"type": "done"}
+
+        llm_time_ms = round((time.time() - t_llm_start) * 1000, 2)
+        total_time_ms = round((time.time() - t_overall_start) * 1000, 2)
+
+        # Build comprehensive developer telemetry
+        dev_telemetry = {
+            "query": query,
+            "total_time_ms": total_time_ms,
+            "retrieval_time_ms": retrieval_ms,
+            "embedding_time_ms": embedding_ms,
+            "llm_time_ms": llm_time_ms,
+            "model_used": active_model,
+            "used_fallback": used_fallback,
+            "fallback_reason": fallback_reason,
+            "prompt_preview": prompt,
+            "query_embedding": {
+                "model": self.embedding_model if self._check_ollama_available() else "chroma-default",
+                "dimensions": len(query_embedding) if query_embedding else 0,
+                "norm": round(math.sqrt(sum(x * x for x in query_embedding)), 4) if query_embedding else 0.0,
+                "sample_values": [round(x, 4) for x in query_embedding[:16]] if query_embedding else [],
+            },
+            "chunks_retrieved_count": len(sources),
+            "raw_chunks": [
+                {
+                    "id": s.get("chunk_id", i),
+                    "source": s.get("metadata", {}).get("source", "unknown"),
+                    "score": s.get("score"),
+                    "raw_distance": s.get("raw_distance"),
+                    "content_preview": s["content"][:240] + ("..." if len(s["content"]) > 240 else ""),
+                    "char_count": len(s["content"]),
+                    "metadata": s.get("metadata", {})
+                }
+                for i, s in enumerate(sources)
+            ]
+        }
+
+        yield {"type": "dev_telemetry", "telemetry": dev_telemetry}
+        yield {"type": "done"}
 
     def query(self, query: str, top_k: int = 3, model_override: Optional[str] = None) -> Dict[str, Any]:
-        """Synchronous full query generation."""
-        sources = self.retrieve(query, top_k=top_k)
+        """Synchronous query execution."""
+        retrieval_data = self.retrieve(query, top_k=top_k)
+        sources = retrieval_data["chunks"]
         if not sources:
             return {
                 "answer": "No relevant documents found. Please ingest documents first.",
-                "sources": []
+                "sources": [],
+                "telemetry": None
             }
 
         active_model = model_override or self.llm_model
@@ -265,6 +416,32 @@ class RAGEngine:
                 "sources": sources
             }
 
+    def get_all_chunks(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Fetch indexed chunks from ChromaDB for developer inspection."""
+        count = self.collection.count()
+        if count == 0:
+            return []
+
+        data = self.collection.get(
+            limit=limit,
+            include=["documents", "metadatas"]
+        )
+
+        chunks_list = []
+        docs = data.get("documents", [])
+        metas = data.get("metadatas", [])
+        ids = data.get("ids", [])
+
+        for i in range(len(docs)):
+            chunks_list.append({
+                "id": ids[i] if i < len(ids) else f"chunk_{i}",
+                "content": docs[i],
+                "char_count": len(docs[i]),
+                "metadata": metas[i] if i < len(metas) else {}
+            })
+
+        return chunks_list
+
     def get_stats(self) -> Dict[str, Any]:
         """Return statistics on currently indexed documents."""
         count = self.collection.count()
@@ -279,7 +456,10 @@ class RAGEngine:
             "total_chunks": count,
             "unique_documents": list(sources),
             "collection_name": self.collection_name,
-            "ollama_online": self._check_ollama_available()
+            "ollama_online": self._check_ollama_available(),
+            "default_model": self.llm_model,
+            "embedding_model": self.embedding_model,
+            "persist_dir": self.persist_dir
         }
 
     def clear_index(self):

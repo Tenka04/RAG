@@ -8,6 +8,8 @@ import { EmptyHero } from "@/components/EmptyHero";
 import { MessageItem } from "@/components/MessageItem";
 import { ChatInput } from "@/components/ChatInput";
 import { UploadModal } from "@/components/UploadModal";
+import { DevModeModal } from "@/components/DevModeModal";
+import { DevConsoleDrawer } from "@/components/DevConsoleDrawer";
 
 const MODELS: ModelOption[] = [
   { id: "llama3.2:3b", name: "Assist Me 3B (llama3.2:3b)", desc: "Flagship reasoning • Fits 4GB VRAM GPU" },
@@ -28,6 +30,11 @@ export default function Home() {
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+
+  // Developer Mode States
+  const [isDevMode, setIsDevMode] = useState(false);
+  const [devAuthModalOpen, setDevAuthModalOpen] = useState(false);
+  const [devConsoleOpen, setDevConsoleOpen] = useState(false);
 
   // System & KB status
   const [stats, setStats] = useState<KBStats>({
@@ -53,6 +60,32 @@ export default function Home() {
     scrollToBottom();
   }, [messages, isStreaming]);
 
+  // Restore Developer Mode from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedDevMode = localStorage.getItem("assistme_dev_mode");
+      if (savedDevMode === "true") {
+        setIsDevMode(true);
+      }
+    }
+  }, []);
+
+  // Global Keyboard Shortcuts (Ctrl+Shift+D or Cmd+Shift+D to toggle Dev Console)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "D" || e.key === "d")) {
+        e.preventDefault();
+        if (isDevMode) {
+          setDevConsoleOpen((prev) => !prev);
+        } else {
+          setDevAuthModalOpen(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDevMode]);
+
   // Fetch KB stats
   const fetchStats = async () => {
     try {
@@ -75,6 +108,24 @@ export default function Home() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Developer Mode Handlers
+  const handleDevUnlockSuccess = () => {
+    setIsDevMode(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("assistme_dev_mode", "true");
+    }
+    showToast("🛠️ Developer Mode activated! Dev Console unlocked.");
+  };
+
+  const handleLockDevMode = () => {
+    setIsDevMode(false);
+    setDevConsoleOpen(false);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("assistme_dev_mode");
+    }
+    showToast("🔒 Developer Mode locked.");
   };
 
   // Chat session management
@@ -276,6 +327,20 @@ export default function Home() {
                       : s
                   )
                 );
+              } else if (chunk.type === "dev_telemetry") {
+                // Developer Mode Telemetry chunk
+                setSessions((prev) =>
+                  prev.map((s) =>
+                    s.id === activeSessionId
+                      ? {
+                          ...s,
+                          messages: s.messages.map((m) =>
+                            m.id === assistantId ? { ...m, dev_telemetry: chunk.telemetry } : m
+                          ),
+                        }
+                      : s
+                  )
+                );
               } else if (chunk.type === "done") {
                 setIsStreaming(false);
               }
@@ -339,6 +404,9 @@ export default function Home() {
         isIngestingSamples={isIngestingSamples}
         onOpenUpload={() => setUploadModalOpen(true)}
         onClearKB={handleClearKB}
+        isDevMode={isDevMode}
+        onOpenDevConsole={() => setDevConsoleOpen(true)}
+        onOpenDevAuth={() => setDevAuthModalOpen(true)}
       />
 
       <main className="gpt-main">
@@ -351,6 +419,9 @@ export default function Home() {
           modelDropdownOpen={modelDropdownOpen}
           setModelDropdownOpen={setModelDropdownOpen}
           onUploadClick={() => setUploadModalOpen(true)}
+          isDevMode={isDevMode}
+          onOpenDevConsole={() => setDevConsoleOpen(true)}
+          onOpenDevAuth={() => setDevAuthModalOpen(true)}
         />
 
         {toastMessage && (
@@ -376,6 +447,7 @@ export default function Home() {
                   message={msg}
                   isStreaming={isStreaming && msg.role === "assistant" && index === messages.length - 1}
                   onRegenerate={msg.role === "assistant" && index === messages.length - 1 ? handleRegenerate : undefined}
+                  isDevMode={isDevMode}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -400,6 +472,18 @@ export default function Home() {
         onClose={() => setUploadModalOpen(false)}
         onUpload={handleFileUpload}
         isUploading={isUploading}
+      />
+
+      <DevModeModal
+        isOpen={devAuthModalOpen}
+        onClose={() => setDevAuthModalOpen(false)}
+        onSuccess={handleDevUnlockSuccess}
+      />
+
+      <DevConsoleDrawer
+        isOpen={devConsoleOpen}
+        onClose={() => setDevConsoleOpen(false)}
+        onLockDevMode={handleLockDevMode}
       />
     </div>
   );

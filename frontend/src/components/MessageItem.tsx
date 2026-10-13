@@ -4,17 +4,20 @@ import React, { useState } from "react";
 import { Message } from "@/types";
 import { SourcesView } from "./SourcesView";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { DevInspector } from "./DevInspector";
 
 interface MessageItemProps {
   message: Message;
   isStreaming?: boolean;
   onRegenerate?: () => void;
+  isDevMode?: boolean;
 }
 
 export const MessageItem: React.FC<MessageItemProps> = ({
   message,
   isStreaming,
   onRegenerate,
+  isDevMode,
 }) => {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
@@ -36,7 +39,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   return (
     <div className="msg-row assistant">
       <div className="assistant-spark-avatar" title="Assist Me">
-        {/* OpenAI Sparkle / Whirl emblem */}
+        {/* OpenAI Sparkle emblem */}
         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
           <path d="M22.28 9.82a6 6 0 0 0-.52-4.91 6.05 6.05 0 0 0-6.51-2.9A6.06 6.06 0 0 0 4.98 4.18a6 6 0 0 0-4 2.9 6.05 6.05 0 0 0 .74 7.1 6 6 0 0 0 .51 4.91 6.05 6.05 0 0 0 6.52 2.9A6 6 0 0 0 13.26 24a6.05 6.05 0 0 0 5.77-4.2 6 6 0 0 0 4-2.9 6.05 6.05 0 0 0-.75-7.08zM13.26 22.43a4.48 4.48 0 0 1-2.88-1.04l.14-.08 4.78-2.76a.8.8 0 0 0 .4-.68v-6.74l2.02 1.17a.07.07 0 0 1 .04.05v5.58a4.5 4.5 0 0 1-4.5 4.5zm-9.66-4.13a4.47 4.47 0 0 1-.53-3.01l.14.08 4.78 2.76a.77.77 0 0 0 .78 0l5.85-3.37v2.33a.08.08 0 0 1-.03.06L9.74 19.95a4.5 4.5 0 0 1-6.14-1.65zM2.34 7.9a4.48 4.48 0 0 1 2.37-1.97v5.67a.77.77 0 0 0 .39.68l5.81 3.35-2.02 1.17a.08.08 0 0 1-.07 0l-4.83-2.79A4.5 4.5 0 0 1 2.34 7.9zm16.6 3.85L13.1 8.38l2.02-1.16a.08.08 0 0 1 .07 0l4.83 2.79a4.49 4.49 0 0 1-.68 8.1v-5.67a.79.79 0 0 0-.4-.59zm2.01-3.02l-.14-.08-4.78-2.79a.78.78 0 0 0-.78 0L9.41 9.23V6.9a.07.07 0 0 1 .03-.06l4.83-2.79a4.5 4.5 0 0 1 6.68 4.67zm-12.64 4.14l-2.02-1.17a.08.08 0 0 1-.04-.05V6.08a4.5 4.5 0 0 1 7.37-3.46l-.14.08-4.78 2.76a.8.8 0 0 0-.4.68zm1.1-2.37l2.6-1.5 2.61 1.5v3l-2.61 1.5-2.6-1.5z" />
         </svg>
@@ -48,6 +51,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         {/* Source Citations */}
         {message.sources && message.sources.length > 0 && (
           <SourcesView sources={message.sources} />
+        )}
+
+        {/* Developer Mode Inspector (Only shown when Developer Mode is active) */}
+        {isDevMode && message.dev_telemetry && (
+          <DevInspector telemetry={message.dev_telemetry} />
         )}
 
         {/* Action Bar */}

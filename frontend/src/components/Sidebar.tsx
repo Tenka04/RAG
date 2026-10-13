@@ -16,6 +16,9 @@ interface SidebarProps {
   isIngestingSamples: boolean;
   onOpenUpload: () => void;
   onClearKB: () => void;
+  isDevMode: boolean;
+  onOpenDevConsole: () => void;
+  onOpenDevAuth: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -31,6 +34,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isIngestingSamples,
   onOpenUpload,
   onClearKB,
+  isDevMode,
+  onOpenDevConsole,
+  onOpenDevAuth,
 }) => {
   return (
     <aside className={`gpt-sidebar ${isOpen ? "" : "closed"}`}>
@@ -174,14 +180,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
         </div>
+
+        {/* Developer Mode Section */}
+        <div className="sidebar-section">
+          <div className="sidebar-group-title">
+            <span>Developer Mode</span>
+            <span className={`dev-badge-chip ${isDevMode ? "active" : ""}`}>
+              {isDevMode ? "ENABLED" : "LOCKED"}
+            </span>
+          </div>
+
+          <div className="kb-action-list">
+            {isDevMode ? (
+              <button
+                className="kb-sidebar-btn dev-active-btn"
+                onClick={onOpenDevConsole}
+                type="button"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10a37f" strokeWidth="2">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                </svg>
+                <span style={{ color: "#10a37f", fontWeight: 600 }}>🛠️ Developer Console</span>
+              </button>
+            ) : (
+              <button
+                className="kb-sidebar-btn"
+                onClick={onOpenDevAuth}
+                type="button"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                <span>Unlock Dev Mode</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Profile / Status Footer */}
       <div className="sidebar-footer-profile">
-        <div className="user-profile-btn">
+        <div
+          className="user-profile-btn"
+          onClick={isDevMode ? onOpenDevConsole : onOpenDevAuth}
+          title={isDevMode ? "Developer Mode active - click to inspect" : "Click to unlock Developer Mode"}
+        >
           <div className="user-avatar-circle">AM</div>
           <div className="user-profile-info">
-            <div className="user-profile-name">Assist Me</div>
+            <div className="user-profile-name">
+              Assist Me {isDevMode && <span className="dev-user-tag">DEV</span>}
+            </div>
             <div className="user-profile-sub">
               {stats.ollama_online ? "🟢 Ollama Online" : "🟡 Grounded Mode"}
             </div>
