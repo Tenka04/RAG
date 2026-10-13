@@ -72,3 +72,8 @@ $RECYCLE.BIN/
 *.log
 tmp/
 temp/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
