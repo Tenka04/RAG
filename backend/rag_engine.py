@@ -284,48 +284,79 @@ class RAGEngine:
         retrieval_res["chunks"] = retrieved_docs
         return retrieval_res
 
-    def build_prompt(self, query: str, context_chunks: List[Dict[str, Any]]) -> str:
-        """Construct a structured grounded prompt with source context."""
-        context_blocks = []
-        for i, chunk in enumerate(context_chunks):
-            source = chunk.get("metadata", {}).get("source", f"Document {i+1}")
-            page_info = chunk.get("metadata", {}).get("chunk_id", i)
-            context_blocks.append(f"--- SOURCE: {source} (Chunk {page_info}) ---\n{chunk['content']}")
+    @staticmethod
+    def _is_casual_message(query: str) -> bool:
+        """Check if user query is a simple greeting or casual conversational message."""
+        clean = query.strip().lower().rstrip("!.,?").strip()
+        casual_phrases = [
+            "hi", "hello", "hey", "hola", "greetings", "good morning",
+            "good afternoon", "good evening", "howdy", "sup", "what's up",
+            "yo", "how are you", "who are you", "what can you do", "thanks",
+            "thank you", "bye", "goodbye"
+        ]
+        if clean in casual_phrases:
+            return True
+        for p in casual_phrases:
+            if clean.startswith(f"{p} ") or clean.endswith(f" {p}"):
+                return True
+        return False
 
-        context_text = "\n\n".join(context_blocks)
+    def build_prompt(self, query: str, context_chunks: Optional[List[Dict[str, Any]]] = None) -> str:
+        """Construct a friendly, flexible grounded prompt or general chat prompt."""
+        if context_chunks and len(context_chunks) > 0 and not self._is_casual_message(query):
+            context_blocks = []
+            for i, chunk in enumerate(context_chunks):
+                source = chunk.get("metadata", {}).get("source", f"Document {i+1}")
+                page_info = chunk.get("metadata", {}).get("chunk_id", i)
+                context_blocks.append(f"--- SOURCE: {source} (Chunk {page_info}) ---\n{chunk['content']}")
 
-        system_instruction = (
-            "You are an expert AI assistant specializing in Retrieval-Augmented Generation (RAG).\n"
-            "Answer the user's question using ONLY the provided context sources below.\n"
-            "Guidelines:\n"
-            "1. Be concise, precise, and directly answer what was asked.\n"
-            "2. Cite the source document name(s) when referencing information.\n"
-            "3. If the provided context does not contain enough information to answer the question, state:\n"
-            "   'I cannot answer this question based on the provided documents.' Do NOT invent facts.\n"
-        )
+            context_text = "\n\n".join(context_blocks)
 
-        full_prompt = (
-            f"{system_instruction}\n\n"
-            f"=== CONTEXT SOURCES ===\n{context_text}\n========================\n\n"
-            f"User Question: {query}\n\n"
-            f"Answer:"
-        )
-        return full_prompt
+            system_instruction = (
+                "You are Assist Me, a friendly, intelligent, and versatile AI assistant equipped with document knowledge.\n"
+                "Instructions:\n"
+                "1. GREETINGS & CASUAL CHAT: If the user says 'hi', 'hello', asks how you are, or engages in casual conversation, reply naturally, warmly, and politely without citing documents.\n"
+                "2. DOCUMENT QUESTIONS: When the user asks about topics described in the provided CONTEXT SOURCES, provide an accurate, grounded answer and cite the source name(s) (e.g., [document.txt]).\n"
+                "3. GENERAL QUESTIONS: When the user asks general questions not covered in the documents (e.g. coding, math, general knowledge, explanations, writing), answer them directly, helpfully, and clearly using your general intelligence.\n"
+                "4. Tone: Helpful, clear, concise, and conversational. Do NOT say 'I cannot answer based on the provided documents' for casual conversation or general knowledge."
+            )
+
+            full_prompt = (
+                f"{system_instruction}\n\n"
+                f"=== CONTEXT SOURCES ===\n{context_text}\n========================\n\n"
+                f"User Question: {query}\n\n"
+                f"Answer:"
+            )
+            return full_prompt
+        else:
+            system_instruction = (
+                "You are Assist Me, a friendly, intelligent, and highly capable AI assistant.\n"
+                "Answer the user's questions clearly, accurately, and politely. Be conversational, helpful, and concise."
+            )
+            return f"{system_instruction}\n\nUser Question: {query}\n\nAnswer:"
 
     def _generate_fallback_synthesis(self, query: str, sources: List[Dict[str, Any]]) -> str:
-        """Fallback synthesis when Ollama is offline or not installed."""
-        lines = [
-            "### 📄 Grounded Document Findings\n",
-            f"Here are the most relevant excerpts retrieved for: **\"{query}\"**\n\n"
-        ]
-        for i, src in enumerate(sources):
-            src_name = src.get("metadata", {}).get("source", f"Source {i+1}")
-            score = src.get("score", "N/A")
-            lines.append(f"**From `{src_name}` (Relevance: {score}):**\n")
-            lines.append(f"> {src['content'].strip()}\n\n")
-        
-        lines.append("\n---\n*💡 **Tip**: Ollama is offline. Run `ollama serve` and `ollama pull llama3.2:3b` to enable full conversational LLM generation.*")
-        return "".join(lines)
+        """Fallback synthesis when Ollama is offline or in Direct Grounded Mode."""
+        if sources:
+            lines = [
+                "### 📄 Grounded Document Findings\n",
+                f"Here are the most relevant excerpts retrieved for: **\"{query}\"**\n\n"
+            ]
+            for i, src in enumerate(sources):
+                src_name = src.get("metadata", {}).get("source", f"Source {i+1}")
+                score = src.get("score", "N/A")
+                lines.append(f"**From `{src_name}` (Relevance: {score}):**\n")
+                lines.append(f"> {src['content'].strip()}\n\n")
+            
+            lines.append("\n---\n*💡 **Tip**: Direct Grounded Mode active. Select `gpt-oss:20b` for full conversational reasoning.*")
+            return "".join(lines)
+        else:
+            return (
+                f"Hello! I am **Assist Me**.\n\n"
+                f"You asked: *\"{query}\"*\n\n"
+                f"No relevant documents were found in the database. In Direct Grounded Mode, responses are synthesized directly from indexed documents. "
+                f"Upload documents in the sidebar or switch to **`gpt-oss:20b`** for conversational AI."
+            )
 
     def generate_response_stream(
         self,
@@ -342,48 +373,28 @@ class RAGEngine:
           - {"type": "done"}
         """
         t_overall_start = time.time()
-        retrieval_data = self.retrieve(query, top_k=top_k)
-        sources = retrieval_data["chunks"]
-        retrieval_ms = retrieval_data["retrieval_ms"]
-        embedding_ms = retrieval_data["embedding_ms"]
-        query_embedding = retrieval_data["query_embedding"]
+        is_casual = self._is_casual_message(query)
+
+        # Retrieve relevant context if not purely a casual greeting and collection has documents
+        if not is_casual and self.collection.count() > 0:
+            retrieval_data = self.retrieve(query, top_k=top_k)
+            raw_sources = retrieval_data["chunks"]
+            # Filter sources to only include chunks within meaningful semantic distance
+            sources = [s for s in raw_sources if s.get("raw_distance", 2.0) <= 1.45]
+            retrieval_ms = retrieval_data["retrieval_ms"]
+            embedding_ms = retrieval_data["embedding_ms"]
+            query_embedding = retrieval_data["query_embedding"]
+        else:
+            sources = []
+            retrieval_ms = 0.0
+            embedding_ms = 0.0
+            query_embedding = None
 
         # Yield sources right away for UI display
         yield {"type": "sources", "sources": sources}
 
-        if not sources:
-            yield {
-                "type": "token",
-                "token": "No relevant documents found in the database. Please upload or ingest some documents first."
-            }
-            total_time_ms = round((time.time() - t_overall_start) * 1000, 2)
-            yield {
-                "type": "dev_telemetry",
-                "telemetry": {
-                    "query": query,
-                    "total_time_ms": total_time_ms,
-                    "retrieval_time_ms": retrieval_ms,
-                    "embedding_time_ms": embedding_ms,
-                    "llm_time_ms": 0.0,
-                    "model_used": model_override or self.llm_model,
-                    "used_fallback": False,
-                    "fallback_reason": None,
-                    "prompt_preview": "No documents available for prompt context.",
-                    "query_embedding": {
-                        "model": self.embedding_model if self._check_ollama_available() else "chroma-default",
-                        "dimensions": len(query_embedding) if query_embedding else 0,
-                        "norm": round(math.sqrt(sum(x * x for x in query_embedding)), 4) if query_embedding else 0.0,
-                        "sample_values": [round(x, 4) for x in query_embedding[:16]] if query_embedding else [],
-                    },
-                    "chunks_retrieved_count": 0,
-                    "raw_chunks": []
-                }
-            }
-            yield {"type": "done"}
-            return
-
         active_model = model_override or self.llm_model
-        prompt = self.build_prompt(query, sources)
+        prompt = self.build_prompt(query, sources if sources else None)
         t_llm_start = time.time()
         used_fallback = False
         fallback_reason = None
@@ -454,17 +465,12 @@ class RAGEngine:
 
     def query(self, query: str, top_k: int = 3, model_override: Optional[str] = None) -> Dict[str, Any]:
         """Synchronous query execution."""
-        retrieval_data = self.retrieve(query, top_k=top_k)
-        sources = retrieval_data["chunks"]
-        if not sources:
-            return {
-                "answer": "No relevant documents found. Please ingest documents first.",
-                "sources": [],
-                "telemetry": None
-            }
+        is_casual = self._is_casual_message(query)
+        retrieval_data = self.retrieve(query, top_k=top_k) if not is_casual else {"chunks": []}
+        sources = retrieval_data.get("chunks", [])
 
         active_model = model_override or self.llm_model
-        prompt = self.build_prompt(query, sources)
+        prompt = self.build_prompt(query, sources if sources else None)
 
         try:
             res = self.client.generate(model=active_model, prompt=prompt, stream=False)
