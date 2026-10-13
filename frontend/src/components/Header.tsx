@@ -58,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
           >
             <span className="model-title-text">Assist Me</span>
-            <span className="model-badge-sub">{selectedModelObj.id.replace(":cloud", "").replace("llama", "")}</span>
+            <span className="model-badge-sub">{selectedModelObj.id.replace("deepseek/", "").replace(":cloud", "").replace("llama", "")}</span>
             {selectedModelObj.is_cloud && (
               <span className="model-cloud-badge" style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "10px", background: "rgba(16, 163, 127, 0.15)", color: "#10a37f", fontWeight: 600, border: "1px solid rgba(16, 163, 127, 0.3)" }}>
                 ☁️ Cloud

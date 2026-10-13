@@ -12,6 +12,8 @@ import { DevModeModal } from "@/components/DevModeModal";
 import { DevConsoleDrawer } from "@/components/DevConsoleDrawer";
 
 const MODELS: ModelOption[] = [
+  { id: "deepseek/deepseek-chat", name: "DeepSeek V3 (deepseek-chat)", desc: "OpenRouter • SOTA Reasoning & Speed", is_cloud: true },
+  { id: "deepseek/deepseek-r1", name: "DeepSeek R1 (deepseek-r1)", desc: "OpenRouter • Deep Chain-of-Thought", is_cloud: true },
   { id: "gpt-oss:20b", name: "Assist Me Cloud 20B (gpt-oss:20b)", desc: "Free Ollama Cloud • Blazing fast reasoning", is_cloud: true },
   { id: "gemma4:31b", name: "Gemma 4 31B (gemma4:31b)", desc: "Free Ollama Cloud • Deep reasoning", is_cloud: true },
   { id: "gpt-oss:120b", name: "GPT-OSS 120B (gpt-oss:120b)", desc: "Free Ollama Cloud • Flagship intelligence", is_cloud: true },
@@ -28,7 +30,7 @@ export default function Home() {
 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [activeModel, setActiveModel] = useState("gpt-oss:20b");
+  const [activeModel, setActiveModel] = useState("deepseek/deepseek-chat");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);

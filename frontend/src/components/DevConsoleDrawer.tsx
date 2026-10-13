@@ -433,6 +433,14 @@ export const DevConsoleDrawer: React.FC<DevConsoleDrawerProps> = ({
                       </span>
                     </div>
                   )}
+                  {diagnostics.openrouter_configured && (
+                    <div className="dev-diag-row">
+                      <span>OpenRouter (DeepSeek):</span>
+                      <span className="code" style={{ color: "#10a37f" }}>
+                        🔑 {diagnostics.openrouter_masked} (Connected)
+                      </span>
+                    </div>
+                  )}
                   <div className="dev-diag-row">
                     <span>Default Model:</span>
                     <span className="code">{diagnostics.default_llm_model}</span>
