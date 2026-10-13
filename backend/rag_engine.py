@@ -4,6 +4,7 @@ Equipped with Developer Telemetry, Embedding Inspection, and Diagnostics.
 """
 
 import os
+import sys
 import time
 import uuid
 import math
@@ -13,17 +14,32 @@ import chromadb
 from chromadb.config import Settings
 import ollama
 
+# Ensure backend directory is in sys.path
+backend_dir = Path(__file__).resolve().parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
 from document_loader import load_and_chunk_file
 
 
 class RAGEngine:
     def __init__(
         self,
-        persist_dir: str = "./chroma_db",
+        persist_dir: Optional[str] = None,
         collection_name: str = "rag_knowledge_base",
         embedding_model: str = "nomic-embed-text",
         llm_model: str = "llama3.2:3b"
     ):
+        if persist_dir is None:
+            backend_chroma = Path(__file__).resolve().parent / "chroma_db"
+            root_chroma = Path(__file__).resolve().parent.parent / "chroma_db"
+            if backend_chroma.exists():
+                persist_dir = str(backend_chroma)
+            elif root_chroma.exists():
+                persist_dir = str(root_chroma)
+            else:
+                persist_dir = str(backend_chroma)
+
         self.persist_dir = persist_dir
         self.collection_name = collection_name
         self.embedding_model = embedding_model
