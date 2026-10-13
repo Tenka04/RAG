@@ -1,5 +1,5 @@
 """
-RAG Engine: Vector Store (ChromaDB), Embedding, Retrieval, and Generation (Ollama)
+RAG Engine: Vector Store (ChromaDB), Embedding, Retrieval, and Generation (Ollama / Ollama Cloud)
 Equipped with Developer Telemetry, Embedding Inspection, and Diagnostics.
 """
 
@@ -19,6 +19,12 @@ backend_dir = Path(__file__).resolve().parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+try:
+    import dotenv
+    dotenv.load_dotenv(dotenv_path=backend_dir / ".env")
+except ImportError:
+    pass
+
 from document_loader import load_and_chunk_file
 
 
@@ -27,8 +33,10 @@ class RAGEngine:
         self,
         persist_dir: Optional[str] = None,
         collection_name: str = "rag_knowledge_base",
-        embedding_model: str = "nomic-embed-text",
-        llm_model: str = "llama3.2:3b"
+        embedding_model: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        ollama_host: Optional[str] = None,
+        ollama_api_key: Optional[str] = None,
     ):
         if persist_dir is None:
             backend_chroma = Path(__file__).resolve().parent / "chroma_db"
@@ -42,9 +50,21 @@ class RAGEngine:
 
         self.persist_dir = persist_dir
         self.collection_name = collection_name
-        self.embedding_model = embedding_model
-        self.llm_model = llm_model
+
+        # Host & API Key configuration (Ollama Cloud or Local)
+        self.ollama_host = ollama_host or os.environ.get("OLLAMA_HOST", "https://ollama.com")
+        self.ollama_api_key = ollama_api_key or os.environ.get("OLLAMA_API_KEY", "0f64427080054799997426594bb41a76.Ga6nHBfHUGxPBYFMGcyygSEO")
+
+        # Models configuration
+        self.llm_model = llm_model or os.environ.get("OLLAMA_DEFAULT_MODEL", "gpt-oss:20b")
+        self.embedding_model = embedding_model or os.environ.get("OLLAMA_EMBED_MODEL", "all-minilm")
         self.init_time = time.time()
+
+        # Initialize Ollama Client with Auth Bearer token if provided
+        headers = {}
+        if self.ollama_api_key:
+            headers["Authorization"] = f"Bearer {self.ollama_api_key}"
+        self.client = ollama.Client(host=self.ollama_host, headers=headers if headers else None)
 
         # Initialize persistent ChromaDB client
         os.makedirs(self.persist_dir, exist_ok=True)
@@ -60,15 +80,15 @@ class RAGEngine:
         self._fallback_embedder = None
 
     def _check_ollama_available(self) -> bool:
-        """Check if Ollama service is running and accessible."""
+        """Check if Ollama service (cloud or local) is accessible."""
         try:
-            ollama.list()
+            self.client.list()
             return True
         except Exception:
             return False
 
     def _get_fallback_embedder(self):
-        """Lazy load chromadb default embedding function when needed."""
+        """Lazy load chromadb default embedding function (ONNX all-MiniLM-L6-v2) when needed."""
         if self._fallback_embedder is None:
             try:
                 from chromadb.utils import embedding_functions
@@ -78,20 +98,35 @@ class RAGEngine:
         return self._fallback_embedder
 
     def get_embedding(self, text: str) -> Optional[List[float]]:
-        """Generate embedding vector for a given text using Ollama or Chroma default."""
+        """
+        Generate embedding vector for a given text.
+        Attempts Ollama embed first; if unauthorized or not supported by endpoint,
+        seamlessly uses local Chroma ONNX DefaultEmbeddingFunction (all-MiniLM-L6-v2).
+        """
         if self._check_ollama_available():
             try:
-                response = ollama.embeddings(
+                # Try newer embed API
+                res = self.client.embed(model=self.embedding_model, input=text)
+                if isinstance(res, dict) and "embeddings" in res and res["embeddings"]:
+                    return [float(x) for x in res["embeddings"][0]]
+                elif hasattr(res, "embeddings") and res.embeddings:
+                    return [float(x) for x in res.embeddings[0]]
+            except Exception:
+                pass
+
+            try:
+                # Try legacy embeddings API
+                response = self.client.embeddings(
                     model=self.embedding_model,
                     prompt=text
                 )
                 emb = response.get("embedding")
                 if emb:
-                    return emb
+                    return [float(x) for x in emb]
             except Exception:
                 pass
 
-        # Fallback to Chroma's built-in ONNX embedding function if available
+        # Robust Fallback to Chroma's built-in ONNX embedding function (local all-MiniLM-L6-v2)
         try:
             embedder = self._get_fallback_embedder()
             if embedder:
@@ -114,9 +149,13 @@ class RAGEngine:
 
         if embedding:
             norm = math.sqrt(sum(x * x for x in embedding))
+            # Determine provider tag
+            provider = "chroma-onnx-all-MiniLM-L6-v2 (offline local)"
+            if len(embedding) != 384:
+                provider = f"ollama/{self.embedding_model}"
             return {
                 "success": True,
-                "model": self.embedding_model if self._check_ollama_available() else "chroma-onnx-all-MiniLM-L6-v2",
+                "model": provider,
                 "dimensions": len(embedding),
                 "norm": round(norm, 4),
                 "latency_ms": latency_ms,
@@ -126,7 +165,7 @@ class RAGEngine:
         else:
             return {
                 "success": False,
-                "error": "Could not generate vector embedding. Ollama offline and ONNX fallback unavailable.",
+                "error": "Could not generate vector embedding. Both Ollama and local ONNX failed.",
                 "model": self.embedding_model,
                 "dimensions": 0,
                 "norm": 0.0,
@@ -349,24 +388,31 @@ class RAGEngine:
         used_fallback = False
         fallback_reason = None
 
-        try:
-            stream = ollama.generate(
-                model=active_model,
-                prompt=prompt,
-                stream=True
-            )
-            for chunk in stream:
-                token = chunk.get("response", "")
-                if token:
-                    yield {"type": "token", "token": token}
-
-        except Exception as e:
+        if active_model == "direct_synthesis":
             used_fallback = True
-            fallback_reason = str(e)
+            fallback_reason = "User requested Direct Grounded Mode."
             fallback_text = self._generate_fallback_synthesis(query, sources)
-            words = fallback_text.split(" ")
-            for w in words:
+            for w in fallback_text.split(" "):
                 yield {"type": "token", "token": w + " "}
+        else:
+            try:
+                stream = self.client.generate(
+                    model=active_model,
+                    prompt=prompt,
+                    stream=True
+                )
+                for chunk in stream:
+                    token = chunk.get("response", "")
+                    if token:
+                        yield {"type": "token", "token": token}
+
+            except Exception as e:
+                used_fallback = True
+                fallback_reason = str(e)
+                fallback_text = self._generate_fallback_synthesis(query, sources)
+                words = fallback_text.split(" ")
+                for w in words:
+                    yield {"type": "token", "token": w + " "}
 
         llm_time_ms = round((time.time() - t_llm_start) * 1000, 2)
         total_time_ms = round((time.time() - t_overall_start) * 1000, 2)
@@ -421,7 +467,7 @@ class RAGEngine:
         prompt = self.build_prompt(query, sources)
 
         try:
-            res = ollama.generate(model=active_model, prompt=prompt, stream=False)
+            res = self.client.generate(model=active_model, prompt=prompt, stream=False)
             return {
                 "answer": res.get("response", ""),
                 "sources": sources
@@ -473,6 +519,8 @@ class RAGEngine:
             "unique_documents": list(sources),
             "collection_name": self.collection_name,
             "ollama_online": self._check_ollama_available(),
+            "ollama_host": self.ollama_host,
+            "is_cloud": "ollama.com" in self.ollama_host,
             "default_model": self.llm_model,
             "embedding_model": self.embedding_model,
             "persist_dir": self.persist_dir

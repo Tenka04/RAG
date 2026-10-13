@@ -419,12 +419,27 @@ export const DevConsoleDrawer: React.FC<DevConsoleDrawerProps> = ({
                     </span>
                   </div>
                   <div className="dev-diag-row">
+                    <span>Ollama Host:</span>
+                    <span className="code">
+                      {diagnostics.ollama_host || "http://localhost:11434"}
+                      {diagnostics.is_cloud && " (☁️ Ollama Cloud)"}
+                    </span>
+                  </div>
+                  {diagnostics.api_key_configured && (
+                    <div className="dev-diag-row">
+                      <span>Cloud API Key:</span>
+                      <span className="code" style={{ color: "#10a37f" }}>
+                        🔑 {diagnostics.api_key_masked} (Authenticated)
+                      </span>
+                    </div>
+                  )}
+                  <div className="dev-diag-row">
                     <span>Default Model:</span>
                     <span className="code">{diagnostics.default_llm_model}</span>
                   </div>
                   <div className="dev-diag-row">
-                    <span>Embedding Model:</span>
-                    <span className="code">{diagnostics.embedding_model}</span>
+                    <span>Embedding Engine:</span>
+                    <span className="code">{diagnostics.embedding_model} (ONNX Fallback Active)</span>
                   </div>
                   <div className="dev-diag-row">
                     <span>Backend Ping Latency:</span>

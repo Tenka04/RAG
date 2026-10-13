@@ -56,6 +56,8 @@ export interface KBStats {
   total_chunks: number;
   unique_documents: string[];
   ollama_online: boolean;
+  ollama_host?: string;
+  is_cloud?: boolean;
   default_model?: string;
   embedding_model?: string;
   collection_name?: string;
@@ -65,6 +67,7 @@ export interface ModelOption {
   id: string;
   name: string;
   desc: string;
+  is_cloud?: boolean;
 }
 
 export interface DevLogEntry {
@@ -95,6 +98,10 @@ export interface SystemDiagnostics {
   total_chunks: number;
   collection_name: string;
   ollama_online: boolean;
+  ollama_host?: string;
+  is_cloud?: boolean;
+  api_key_configured?: boolean;
+  api_key_masked?: string;
   available_ollama_models: string[];
   default_llm_model: string;
   embedding_model: string;

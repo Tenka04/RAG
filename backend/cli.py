@@ -30,11 +30,11 @@ def main():
     # Query command
     query_parser = subparsers.add_parser("query", help="Ask a one-off question")
     query_parser.add_argument("question", type=str, help="Question to ask")
-    query_parser.add_argument("--model", type=str, default="llama3.2:3b", help="Model to use")
+    query_parser.add_argument("--model", type=str, default=None, help="Model to use (default from env)")
 
     # Interactive chat command
     chat_parser = subparsers.add_parser("chat", help="Start an interactive chat session")
-    chat_parser.add_argument("--model", type=str, default="llama3.2:3b", help="Model to use")
+    chat_parser.add_argument("--model", type=str, default=None, help="Model to use (default from env)")
 
     # Stats command
     subparsers.add_parser("stats", help="Display knowledge base statistics")

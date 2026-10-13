@@ -12,10 +12,12 @@ import { DevModeModal } from "@/components/DevModeModal";
 import { DevConsoleDrawer } from "@/components/DevConsoleDrawer";
 
 const MODELS: ModelOption[] = [
-  { id: "llama3.2:3b", name: "Assist Me 3B (llama3.2:3b)", desc: "Flagship reasoning • Fits 4GB VRAM GPU" },
-  { id: "llama3.2:1b", name: "Assist Me 1B (llama3.2:1b)", desc: "Ultra-fast lightweight model" },
-  { id: "direct_synthesis", name: "Direct Grounded Mode", desc: "No Ollama required • Instant local synthesis" },
-  { id: "gemma4:cloud", name: "Cloud Engine (gemma4:cloud)", desc: "Ollama cloud datacenter tier" },
+  { id: "gpt-oss:20b", name: "Assist Me Cloud 20B (gpt-oss:20b)", desc: "Free Ollama Cloud • Blazing fast reasoning", is_cloud: true },
+  { id: "gemma4:31b", name: "Gemma 4 31B (gemma4:31b)", desc: "Free Ollama Cloud • Deep reasoning", is_cloud: true },
+  { id: "gpt-oss:120b", name: "GPT-OSS 120B (gpt-oss:120b)", desc: "Free Ollama Cloud • Flagship intelligence", is_cloud: true },
+  { id: "nemotron-3-nano:30b", name: "Nemotron 30B (nemotron-3-nano:30b)", desc: "Free Ollama Cloud • Fast datacenter", is_cloud: true },
+  { id: "llama3.2:3b", name: "Local Ollama 3B (llama3.2:3b)", desc: "On-device GPU/CPU execution", is_cloud: false },
+  { id: "direct_synthesis", name: "Direct Grounded Mode", desc: "No LLM required • Instant local synthesis", is_cloud: false },
 ];
 
 export default function Home() {
@@ -26,7 +28,7 @@ export default function Home() {
 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [activeModel, setActiveModel] = useState("llama3.2:3b");
+  const [activeModel, setActiveModel] = useState("gpt-oss:20b");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
