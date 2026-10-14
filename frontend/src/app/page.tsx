@@ -271,6 +271,17 @@ export default function Home() {
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
+    const t0 = performance.now();
+    console.group(`⏱️ [Assist Me RAG] Latency Trace: "${query.slice(0, 45)}${query.length > 45 ? "..." : ""}"`);
+    console.log(`[T0 +0.0ms] 🚀 Dispatching query to POST /api/chat`, {
+      query,
+      model: activeModel,
+      top_k: 3,
+    });
+
+    let firstTokenTime: number | null = null;
+    let tokenCount = 0;
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -282,6 +293,9 @@ export default function Home() {
           top_k: 3,
         }),
       });
+
+      const ttfb = Math.round(performance.now() - t0);
+      console.log(`[TTFB +${ttfb}ms] ⚡ HTTP response headers received (Status: ${response.status})`);
 
       if (!response.ok || !response.body) {
         throw new Error(`HTTP error ${response.status}`);
@@ -306,6 +320,8 @@ export default function Home() {
             try {
               const chunk = JSON.parse(rawJson);
               if (chunk.type === "sources") {
+                const tSources = Math.round(performance.now() - t0);
+                console.log(`[T+${tSources}ms] 📄 Sources received: ${chunk.sources?.length || 0} document chunk(s)`);
                 setSessions((prev) =>
                   prev.map((s) =>
                     s.id === activeSessionId
@@ -319,6 +335,11 @@ export default function Home() {
                   )
                 );
               } else if (chunk.type === "token") {
+                if (firstTokenTime === null) {
+                  firstTokenTime = Math.round(performance.now() - t0);
+                  console.log(`[TTFT +${firstTokenTime}ms] 💬 Time-To-First-Token! First word rendered on screen.`);
+                }
+                tokenCount++;
                 setSessions((prev) =>
                   prev.map((s) =>
                     s.id === activeSessionId
@@ -333,6 +354,22 @@ export default function Home() {
                 );
               } else if (chunk.type === "dev_telemetry") {
                 // Developer Mode Telemetry chunk
+                const tTelemetry = Math.round(performance.now() - t0);
+                console.log(`[T+${tTelemetry}ms] 📊 Server Developer Telemetry received:`);
+                console.table({
+                  "Client Total Roundtrip": `${Math.round(performance.now() - t0)} ms`,
+                  "Client TTFT (Time to 1st Token)": `${firstTokenTime ?? 0} ms`,
+                  "Server Total Time": `${chunk.telemetry?.total_time_ms ?? 0} ms`,
+                  "Server Embedding Latency": `${chunk.telemetry?.embedding_time_ms ?? 0} ms`,
+                  "Server Retrieval Latency": `${chunk.telemetry?.retrieval_time_ms ?? 0} ms`,
+                  "Server LLM Latency": `${chunk.telemetry?.llm_time_ms ?? 0} ms`,
+                  "Server LLM TTFT": `${chunk.telemetry?.ttft_ms ?? 0} ms`,
+                  "Model Used": chunk.telemetry?.model_used ?? activeModel,
+                  "Used Fallback": chunk.telemetry?.used_fallback ? "Yes ⚠️" : "No",
+                });
+                if (chunk.telemetry?.bottlenecks && chunk.telemetry.bottlenecks.length > 0) {
+                  console.warn("🚨 Latency Bottleneck Root Cause:", chunk.telemetry.bottlenecks);
+                }
                 setSessions((prev) =>
                   prev.map((s) =>
                     s.id === activeSessionId
@@ -346,6 +383,14 @@ export default function Home() {
                   )
                 );
               } else if (chunk.type === "done") {
+                const totalDuration = Math.round(performance.now() - t0);
+                const streamDuration = firstTokenTime ? (totalDuration - firstTokenTime) : totalDuration;
+                const tokensPerSec = streamDuration > 0 ? ((tokenCount / (streamDuration / 1000)).toFixed(1)) : "0";
+                console.log(`[DONE +${totalDuration}ms] 🏁 Stream complete! ${tokenCount} tokens rendered in ${streamDuration}ms (${tokensPerSec} tokens/sec).`);
+                if (totalDuration > 3000) {
+                  console.warn(`⚠️ High Latency Detected (${totalDuration}ms / ${(totalDuration / 1000).toFixed(2)}s). Check the Server Telemetry table above for the slowest step.`);
+                }
+                console.groupEnd();
                 setIsStreaming(false);
               }
             } catch {
@@ -355,6 +400,9 @@ export default function Home() {
         }
       }
     } catch (err: unknown) {
+      const errTime = Math.round(performance.now() - t0);
+      console.error(`[ERROR +${errTime}ms] Generation failed:`, err);
+      console.groupEnd();
       if (err instanceof Error && err.name === "AbortError") {
         // User stopped generation
       } else {

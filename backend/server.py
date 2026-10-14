@@ -80,6 +80,14 @@ async def developer_logging_middleware(request: Request, call_next):
         duration_ms = round((time.time() - start_time) * 1000, 2)
         status_code = response.status_code
 
+        # Print formatted request timing to terminal console
+        if endpoint.startswith("/api/"):
+            color = "\033[0;32m" if status_code < 400 else "\033[1;31m"
+            reset = "\033[0m"
+            dim = "\033[2m"
+            bold = "\033[1m"
+            print(f"🌐 [HTTP] {bold}{method:<6}{reset} {endpoint:<26} -> {color}{status_code} OK{reset} {dim}({duration_ms:,.2f} ms){reset}")
+
         # Log requests to dev logger
         level = "ERROR" if status_code >= 400 else "INFO"
         if endpoint.startswith("/api/"):
@@ -95,6 +103,7 @@ async def developer_logging_middleware(request: Request, call_next):
     except Exception as exc:
         duration_ms = round((time.time() - start_time) * 1000, 2)
         tb_str = traceback.format_exc()
+        print(f"\033[1;31m🚨 [HTTP ERROR] {method} {endpoint} failed in {duration_ms:,.2f} ms: {exc}\033[0m")
         log_dev_event(
             level="ERROR",
             message=f"Unhandled exception in {method} {endpoint}: {str(exc)}",
@@ -174,6 +183,8 @@ async def upload_documents(files: List[UploadFile] = File(...)):
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded.")
 
+    t_up_start = time.perf_counter()
+    print(f"\n📥 [API-UPLOAD] Received {len(files)} file(s) for upload and indexing...")
     total_chunks = 0
     processed_files = []
 
@@ -209,6 +220,9 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+    up_duration_ms = round((time.perf_counter() - t_up_start) * 1000, 2)
+    print(f"📥 [API-UPLOAD] Indexed {total_chunks} chunks across {len(processed_files)} file(s) in {up_duration_ms:,.2f} ms\n")
+
     return {
         "message": f"Successfully indexed {len(processed_files)} document(s)",
         "total_chunks_added": total_chunks,
@@ -228,6 +242,8 @@ def ingest_samples():
         log_dev_event(level="WARN", message="sample_docs directory not found on server.", endpoint="/api/ingest-sample")
         raise HTTPException(status_code=404, detail="sample_docs directory not found")
 
+    t_sample_start = time.perf_counter()
+    print(f"\n📚 [API-SAMPLE] Ingesting sample documents from: {sample_dir}...")
     total_chunks = 0
     files_processed = []
 
@@ -245,6 +261,9 @@ def ingest_samples():
                     traceback_str=traceback.format_exc()
                 )
 
+    sample_ms = round((time.perf_counter() - t_sample_start) * 1000, 2)
+    print(f"📚 [API-SAMPLE] Completed sample documents: {len(files_processed)} files, {total_chunks} chunks in {sample_ms:,.2f} ms\n")
+
     log_dev_event(
         level="INFO",
         message=f"Sample documents ingested: {len(files_processed)} files, {total_chunks} chunks.",
@@ -261,14 +280,19 @@ def ingest_samples():
 @app.post("/api/clear")
 def clear_knowledge_base():
     """Clear all indexed documents from ChromaDB."""
+    print("\n🗑️ [API-CLEAR] Clearing all indexed documents from ChromaDB...")
+    t_clear = time.perf_counter()
     engine.clear_index()
+    clear_ms = round((time.perf_counter() - t_clear) * 1000, 2)
+    print(f"🗑️ [API-CLEAR] ChromaDB knowledge base reset in {clear_ms:,.2f} ms\n")
     log_dev_event(level="WARN", message="ChromaDB knowledge base was cleared by user.", endpoint="/api/clear")
     return {"message": "Knowledge base cleared successfully."}
 
 
 @app.post("/api/query", response_model=QueryResponse)
 def query_documents(req: ChatRequest):
-    """Synchronous non-streaming query endpoint."""
+    """Synchronous non-streaming query endpoint with console timing."""
+    print(f"\n📡 [API-QUERY] Synchronous request received: \"{req.query[:60]}\" (model: {req.model or engine.llm_model})")
     res = engine.query(query=req.query, top_k=req.top_k or 3, model_override=req.model)
     return QueryResponse(answer=res["answer"], sources=res["sources"])
 
@@ -279,15 +303,22 @@ async def chat_stream(req: ChatRequest):
     Streaming Server-Sent Events (SSE) chat endpoint.
     Streams sources first, followed by incremental tokens, developer telemetry, then completion flag.
     """
+    t_chat_start = time.perf_counter()
+    print(f"\n📡 [API-CHAT] Client connected for SSE stream: \"{req.query[:60]}\" (model: {req.model or engine.llm_model})")
+
     def event_generator():
+        event_count = 0
         stream = engine.generate_response_stream(
             query=req.query,
             top_k=req.top_k or 3,
             model_override=req.model
         )
         for chunk in stream:
+            event_count += 1
             payload = json.dumps(chunk)
             yield f"data: {payload}\n\n"
+        stream_ms = round((time.perf_counter() - t_chat_start) * 1000, 2)
+        print(f"📡 [API-CHAT] Finished SSE stream: {event_count} events dispatched to client in {stream_ms:,.2f} ms\n")
 
     return StreamingResponse(
         event_generator(),

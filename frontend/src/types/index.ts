@@ -15,6 +15,15 @@ export interface DevTelemetry {
   retrieval_time_ms?: number;
   embedding_time_ms?: number;
   llm_time_ms?: number;
+  ttft_ms?: number;
+  tokens_count?: number;
+  tokens_per_second?: number;
+  timing_steps?: Array<{
+    name: string;
+    duration_ms: number;
+    details?: string;
+  }>;
+  bottlenecks?: string[];
   model_used?: string;
   used_fallback?: boolean;
   fallback_reason?: string;
