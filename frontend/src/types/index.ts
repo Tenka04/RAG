@@ -71,6 +71,8 @@ export interface KBStats {
   default_model?: string;
   embedding_model?: string;
   collection_name?: string;
+  langgraph_enabled?: boolean;
+  available_tools?: string[];
 }
 
 export interface ModelOption {

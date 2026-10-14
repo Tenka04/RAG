@@ -10,6 +10,7 @@ A modern, production-grade Retrieval-Augmented Generation (RAG) system supportin
 - **Smart Chunking**: Recursive character splitting with configurable chunk size and overlap.
 - **Persistent Vector Store**: ChromaDB local database with cosine similarity search.
 - **Hybrid Embedding & Fallback**: Native Ollama embeddings (`nomic-embed-text`) with automatic built-in fallback to fast ONNX embeddings (`all-MiniLM-L6-v2`).
+- **LangGraph Multi-Agent Orchestration**: Stateful agent workflow with Intent Routing (Supervisor), Corrective RAG loops, Live Web Search (DuckDuckGo + Wikipedia), and Python Calculator Tools.
 - **Local & Cloud Generation**:
   - **Local**: `llama3.2:3b` and `llama3.2:1b` (100% offline, fits inside 4 GB VRAM).
   - **Cloud**: `gemma4:cloud` (Ollama's free cloud tier, fast datacenter execution).

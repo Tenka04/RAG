@@ -28,6 +28,12 @@ if str(backend_dir) not in sys.path:
 
 from rag_engine import RAGEngine
 
+try:
+    from agent_graph import stream_agent_execution
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+
 app = FastAPI(
     title="Assist Me RAG Backend API",
     description="High-performance backend for document ingestion, semantic search, streaming RAG, and Developer Telemetry.",
@@ -123,6 +129,7 @@ class ChatRequest(BaseModel):
     query: str
     model: Optional[str] = None
     top_k: Optional[int] = 3
+    use_agent: Optional[bool] = True
 
 
 class QueryResponse(BaseModel):
@@ -157,7 +164,9 @@ def get_status():
         "openrouter_configured": stats.get("openrouter_configured", False),
         "default_model": engine.llm_model,
         "embedding_model": engine.embedding_model,
-        "persist_dir": stats["persist_dir"]
+        "persist_dir": stats["persist_dir"],
+        "langgraph_enabled": LANGGRAPH_AVAILABLE,
+        "available_tools": ["chroma_rag", "web_search_ddg_wiki", "safe_python_calculator"] if LANGGRAPH_AVAILABLE else []
     }
 
 
@@ -292,7 +301,16 @@ def clear_knowledge_base():
 @app.post("/api/query", response_model=QueryResponse)
 def query_documents(req: ChatRequest):
     """Synchronous non-streaming query endpoint with console timing."""
-    print(f"\n📡 [API-QUERY] Synchronous request received: \"{req.query[:60]}\" (model: {req.model or engine.llm_model})")
+    print(f"\n📡 [API-QUERY] Synchronous request received: \"{req.query[:60]}\" (model: {req.model or engine.llm_model}, agent: {req.use_agent})")
+    if req.use_agent and LANGGRAPH_AVAILABLE:
+        full_tokens = []
+        sources = []
+        for event in stream_agent_execution(engine=engine, query=req.query, model_override=req.model, top_k=req.top_k or 3):
+            if event["type"] == "sources":
+                sources = event.get("sources", [])
+            elif event["type"] == "token":
+                full_tokens.append(event.get("token", ""))
+        return QueryResponse(answer="".join(full_tokens), sources=sources)
     res = engine.query(query=req.query, top_k=req.top_k or 3, model_override=req.model)
     return QueryResponse(answer=res["answer"], sources=res["sources"])
 
@@ -308,11 +326,19 @@ async def chat_stream(req: ChatRequest):
 
     def event_generator():
         event_count = 0
-        stream = engine.generate_response_stream(
-            query=req.query,
-            top_k=req.top_k or 3,
-            model_override=req.model
-        )
+        if req.use_agent and LANGGRAPH_AVAILABLE:
+            stream = stream_agent_execution(
+                engine=engine,
+                query=req.query,
+                model_override=req.model,
+                top_k=req.top_k or 3
+            )
+        else:
+            stream = engine.generate_response_stream(
+                query=req.query,
+                top_k=req.top_k or 3,
+                model_override=req.model
+            )
         for chunk in stream:
             event_count += 1
             payload = json.dumps(chunk)

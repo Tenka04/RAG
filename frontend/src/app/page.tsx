@@ -49,6 +49,7 @@ export default function Home() {
   const [isIngestingSamples, setIsIngestingSamples] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -291,6 +292,7 @@ export default function Home() {
           query,
           model: activeModel,
           top_k: 3,
+          use_agent: true,
         }),
       });
 
@@ -319,7 +321,11 @@ export default function Home() {
             const rawJson = trimmed.slice(6);
             try {
               const chunk = JSON.parse(rawJson);
-              if (chunk.type === "sources") {
+              if (chunk.type === "agent_action") {
+                const tAction = Math.round(performance.now() - t0);
+                console.log(`[T+${tAction}ms] 🤖 Agent [${chunk.agent}]: ${chunk.status}`);
+                setAgentStatus(chunk.status);
+              } else if (chunk.type === "sources") {
                 const tSources = Math.round(performance.now() - t0);
                 console.log(`[T+${tSources}ms] 📄 Sources received: ${chunk.sources?.length || 0} document chunk(s)`);
                 setSessions((prev) =>
@@ -338,6 +344,7 @@ export default function Home() {
                 if (firstTokenTime === null) {
                   firstTokenTime = Math.round(performance.now() - t0);
                   console.log(`[TTFT +${firstTokenTime}ms] 💬 Time-To-First-Token! First word rendered on screen.`);
+                  setAgentStatus(null);
                 }
                 tokenCount++;
                 setSessions((prev) =>
@@ -428,6 +435,7 @@ export default function Home() {
       }
     } finally {
       setIsStreaming(false);
+      setAgentStatus(null);
       abortControllerRef.current = null;
     }
   };
@@ -506,6 +514,32 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {agentStatus && isStreaming && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            padding: "6px 14px",
+            fontSize: "12px",
+            color: "#10a37f",
+            backgroundColor: "rgba(16, 163, 127, 0.08)",
+            border: "1px solid rgba(16, 163, 127, 0.25)",
+            borderRadius: "20px",
+            margin: "0 auto 10px auto",
+            width: "fit-content"
+          }}>
+            <span style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              backgroundColor: "#10a37f",
+              display: "inline-block"
+            }} />
+            <span style={{ fontWeight: 500 }}>{agentStatus}</span>
+          </div>
+        )}
 
         {messages.length > 0 && (
           <ChatInput
