@@ -110,6 +110,20 @@ export const DevInspector: React.FC<DevInspectorProps> = ({ telemetry }) => {
                   <div className="dev-metric-val">{telemetry.llm_time_ms ?? "N/A"} ms</div>
                   <div className="dev-metric-sub">{telemetry.model_used || "Active model"}</div>
                 </div>
+                {telemetry.ttft_ms !== undefined && (
+                  <div className="dev-metric-card">
+                    <div className="dev-metric-lbl">Time to 1st Token</div>
+                    <div className="dev-metric-val">{telemetry.ttft_ms} ms</div>
+                    <div className="dev-metric-sub">TTFT response start</div>
+                  </div>
+                )}
+                {telemetry.tokens_per_second !== undefined && telemetry.tokens_per_second > 0 && (
+                  <div className="dev-metric-card">
+                    <div className="dev-metric-lbl">Stream Speed</div>
+                    <div className="dev-metric-val">{telemetry.tokens_per_second} tok/s</div>
+                    <div className="dev-metric-sub">{telemetry.tokens_count || 0} tokens streamed</div>
+                  </div>
+                )}
               </div>
 
               {/* Pipeline Progress Bar */}
@@ -131,6 +145,39 @@ export const DevInspector: React.FC<DevInspectorProps> = ({ telemetry }) => {
                       title={`Generation: ${telemetry.llm_time_ms}ms`}
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Latency Steps Breakdown */}
+              {telemetry.timing_steps && telemetry.timing_steps.length > 0 && (
+                <div style={{ marginTop: "12px", background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: "8px", padding: "8px 12px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                    Pipeline Sub-Step Breakdown
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {telemetry.timing_steps.map((st, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", fontFamily: "var(--font-mono)" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>{st.name}</span>
+                        <span style={{ color: st.duration_ms > 1000 ? "#f87171" : st.duration_ms > 200 ? "#fbbf24" : "#34d399", fontWeight: 600 }}>
+                          {st.duration_ms} ms
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Root Cause / Bottleneck Warning Callout */}
+              {telemetry.bottlenecks && telemetry.bottlenecks.length > 0 && (
+                <div style={{ marginTop: "12px", padding: "10px 12px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.25)", borderRadius: "8px", fontSize: "11.5px" }}>
+                  <div style={{ fontWeight: 600, color: "#f87171", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>🚨</span> Latency Bottlenecks & Diagnosis
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "16px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {telemetry.bottlenecks.map((b, idx) => (
+                      <li key={idx}>{b}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
