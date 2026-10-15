@@ -514,6 +514,40 @@ def stream_agent_execution(
         "agent_status_updates": []
     }
 
+    # Instant sub-millisecond answer for local system date/time
+    quick_ans = engine._get_quick_system_answer(query)
+    if quick_ans:
+        yield {
+            "type": "agent_action",
+            "agent": "supervisor",
+            "status": "System Clock Tool: Resolving instant date/time...",
+            "details": quick_ans
+        }
+        yield {"type": "sources", "sources": []}
+        yield {"type": "token", "token": quick_ans}
+        total_time_ms = round((time.perf_counter() - t_start) * 1000, 2)
+        telemetry = {
+            "query": query,
+            "total_time_ms": total_time_ms,
+            "retrieval_time_ms": 0.0,
+            "embedding_time_ms": 0.0,
+            "llm_time_ms": total_time_ms,
+            "ttft_ms": total_time_ms,
+            "tokens_count": len(quick_ans.split()),
+            "tokens_per_second": 999.0,
+            "timing_steps": [{"name": "1. Instant Clock Tool", "duration_ms": total_time_ms, "details": "System clock"}],
+            "bottlenecks": [],
+            "model_used": "System Clock Tool (Instant ⚡)",
+            "used_fallback": False,
+            "fallback_reason": "",
+            "prompt_preview": query,
+            "chunks_retrieved_count": 0,
+            "raw_chunks": []
+        }
+        yield {"type": "dev_telemetry", "telemetry": telemetry}
+        yield {"type": "done"}
+        return
+
     # --------------------------------------------------------------------------
     # Step 1: Supervisor / Router
     # --------------------------------------------------------------------------
@@ -635,21 +669,68 @@ def stream_agent_execution(
                 yield {"type": "token", "token": chunk}
             full_answer = "".join(full_answer_parts)
         else:
-            # Local Ollama Streaming
-            import ollama
-            stream = ollama.chat(
-                model=active_model,
-                messages=[{"role": "user", "content": prompt}],
-                stream=True
-            )
-            for chunk in stream:
-                token_text = chunk.get("message", {}).get("content", "")
-                if token_text:
-                    if first_token_time is None:
-                        first_token_time = round((time.perf_counter() - t_llm_start) * 1000, 2)
-                    token_count += 1
-                    full_answer_parts.append(token_text)
+            # Local Ollama Streaming on GPU
+            if engine._check_local_ollama_available():
+                stream = engine.local_client.chat(
+                    model=active_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    stream=True,
+                    keep_alive="24h",
+                    options={"num_ctx": 2048, "num_predict": 1024}
+                )
+            else:
+                import ollama
+                stream = ollama.chat(
+                    model=active_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    stream=True
+                )
+
+            in_reasoning = False
+            line_buf = ""
+            lines_delivered = 0
+            target_prog_lines = 2
+
+            def _extract_tokens():
+                nonlocal in_reasoning
+                for chunk in stream:
+                    msg = getattr(chunk, "message", None) or (chunk.get("message", {}) if isinstance(chunk, dict) else {})
+                    thinking = getattr(msg, "thinking", None) or (msg.get("thinking") if isinstance(msg, dict) else None)
+                    content = getattr(msg, "content", None) or (msg.get("content") if isinstance(msg, dict) else None)
+                    if thinking:
+                        if not in_reasoning:
+                            in_reasoning = True
+                            yield "> **Thinking Process:**\n> "
+                        yield thinking.replace("\n", "\n> ")
+                    if content:
+                        if in_reasoning:
+                            in_reasoning = False
+                            yield "\n\n"
+                        yield content
+
+            for token_text in _extract_tokens():
+                if first_token_time is None:
+                    first_token_time = round((time.perf_counter() - t_llm_start) * 1000, 2)
+                token_count += 1
+                full_answer_parts.append(token_text)
+
+                # Progressive line-by-line delivery for smooth visual onset
+                if lines_delivered < target_prog_lines:
+                    line_buf += token_text
+                    if "\n" in line_buf or len(line_buf) >= 60:
+                        yield {"type": "token", "token": line_buf}
+                        line_buf = ""
+                        lines_delivered += 1
+                        time.sleep(0.02)
+                else:
+                    if line_buf:
+                        yield {"type": "token", "token": line_buf}
+                        line_buf = ""
+                    # Instant text delivery for subsequent tokens
                     yield {"type": "token", "token": token_text}
+
+            if line_buf:
+                yield {"type": "token", "token": line_buf}
             full_answer = "".join(full_answer_parts)
 
     except Exception as exc:

@@ -753,6 +753,77 @@ input, textarea, select {
   font-size: 14.5px;
 }
 
+/* Collapsible Thinking Process Box */
+.gpt-thinking-box {
+  margin: 10px 0 16px 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.gpt-thinking-box[open] {
+  border-color: rgba(16, 163, 127, 0.25);
+  background: rgba(16, 163, 127, 0.02);
+}
+
+.gpt-thinking-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gpt-thinking-summary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e4e4e7;
+}
+
+.gpt-thinking-icon {
+  font-size: 14px;
+}
+
+.gpt-thinking-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.gpt-thinking-live-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(16, 163, 127, 0.15);
+  color: #10a37f;
+  font-weight: 600;
+  margin-left: auto;
+  animation: pulse 1.5s infinite;
+}
+
+.gpt-thinking-content {
+  padding: 10px 14px 14px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: var(--font-mono, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #9ca3af;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.gpt-thinking-line {
+  margin-bottom: 3px;
+}
+
 .gpt-inline-code {
   font-family: var(--font-mono);
   font-size: 13.5px;

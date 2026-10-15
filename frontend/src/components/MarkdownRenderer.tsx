@@ -37,7 +37,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
     // Text before code block
     if (match.index > lastIndex) {
       const textChunk = content.slice(lastIndex, match.index);
-      parts.push(renderFormattedText(textChunk, `text_${lastIndex}`));
+      parts.push(renderFormattedText(textChunk, `text_${lastIndex}`, isStreaming));
     }
 
     const language = match[1] || "code";
@@ -83,7 +83,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
   // Trailing text
   if (lastIndex < content.length) {
     const trailing = content.slice(lastIndex);
-    parts.push(renderFormattedText(trailing, `text_${lastIndex}`));
+    parts.push(renderFormattedText(trailing, `text_${lastIndex}`, isStreaming));
   }
 
   return (
@@ -95,7 +95,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
 };
 
 // Helper to render markdown text paragraphs, lists, headers, bold, italics, inline code
-function renderFormattedText(text: string, keyPrefix: string): React.ReactNode {
+function renderFormattedText(text: string, keyPrefix: string, isStreaming?: boolean): React.ReactNode {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
   let inList = false;
@@ -154,14 +154,43 @@ function renderFormattedText(text: string, keyPrefix: string): React.ReactNode {
       continue;
     }
 
-    // Blockquote
-    if (line.startsWith("> ")) {
+    // Blockquote (accumulate consecutive blockquote lines)
+    if (line.startsWith("> ") || line === ">") {
       flushList();
-      elements.push(
-        <blockquote key={`${keyPrefix}_quote_${i}`} className="gpt-blockquote">
-          {formatInline(line.slice(2))}
-        </blockquote>
-      );
+      const quoteLines: string[] = [line.startsWith("> ") ? line.slice(2) : ""];
+      while (i + 1 < lines.length && (lines[i + 1].startsWith("> ") || lines[i + 1] === ">")) {
+        i++;
+        quoteLines.push(lines[i].startsWith("> ") ? lines[i].slice(2) : "");
+      }
+
+      const isThinking = quoteLines.length > 0 && quoteLines[0].toLowerCase().includes("thinking process");
+      if (isThinking) {
+        const bodyLines = quoteLines.slice(1);
+        elements.push(
+          <details key={`${keyPrefix}_think_${i}`} className="gpt-thinking-box" open={isStreaming}>
+            <summary className="gpt-thinking-summary">
+              <span className="gpt-thinking-icon">💭</span>
+              <span className="gpt-thinking-title">Thought Process</span>
+              {isStreaming && <span className="gpt-thinking-live-badge">thinking...</span>}
+            </summary>
+            <div className="gpt-thinking-content">
+              {bodyLines.map((ql, qIdx) => (
+                <div key={qIdx} className="gpt-thinking-line">
+                  {ql ? formatInline(ql) : <br />}
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      } else {
+        elements.push(
+          <blockquote key={`${keyPrefix}_quote_${i}`} className="gpt-blockquote">
+            {quoteLines.map((ql, qIdx) => (
+              <div key={qIdx}>{ql ? formatInline(ql) : <br />}</div>
+            ))}
+          </blockquote>
+        );
+      }
       continue;
     }
 

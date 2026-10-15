@@ -12,14 +12,14 @@ import { DevModeModal } from "@/components/DevModeModal";
 import { DevConsoleDrawer } from "@/components/DevConsoleDrawer";
 
 const MODELS: ModelOption[] = [
+  { id: "qwen3:4b", name: "Qwen3 4B (Local GPU ⚡ Sub-Second)", desc: "On-device RTX 3050 Ti • Instant line-by-line streaming", is_cloud: false },
+  { id: "direct_synthesis", name: "Direct Grounded Mode (⚡ Instant 10ms)", desc: "Zero LLM wait • Instant local document synthesis", is_cloud: false },
   { id: "deepseek/deepseek-chat", name: "DeepSeek V3 (deepseek-chat)", desc: "OpenRouter • SOTA Reasoning & Speed", is_cloud: true },
   { id: "deepseek/deepseek-r1", name: "DeepSeek R1 (deepseek-r1)", desc: "OpenRouter • Deep Chain-of-Thought", is_cloud: true },
   { id: "gpt-oss:20b", name: "Assist Me Cloud 20B (gpt-oss:20b)", desc: "Free Ollama Cloud • Blazing fast reasoning", is_cloud: true },
   { id: "gemma4:31b", name: "Gemma 4 31B (gemma4:31b)", desc: "Free Ollama Cloud • Deep reasoning", is_cloud: true },
   { id: "gpt-oss:120b", name: "GPT-OSS 120B (gpt-oss:120b)", desc: "Free Ollama Cloud • Flagship intelligence", is_cloud: true },
   { id: "nemotron-3-nano:30b", name: "Nemotron 30B (nemotron-3-nano:30b)", desc: "Free Ollama Cloud • Fast datacenter", is_cloud: true },
-  { id: "llama3.2:3b", name: "Local Ollama 3B (llama3.2:3b)", desc: "On-device GPU/CPU execution", is_cloud: false },
-  { id: "direct_synthesis", name: "Direct Grounded Mode", desc: "No LLM required • Instant local synthesis", is_cloud: false },
 ];
 
 export default function Home() {
@@ -30,7 +30,7 @@ export default function Home() {
 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [activeModel, setActiveModel] = useState("deepseek/deepseek-chat");
+  const [activeModel, setActiveModel] = useState("qwen3:4b");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -306,6 +306,25 @@ export default function Home() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
+      let accumulatedContent = "";
+      let rafScheduled = false;
+
+      const flushContentToState = () => {
+        const textToFlush = accumulatedContent;
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === activeSessionId
+              ? {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === assistantId ? { ...m, content: textToFlush } : m
+                  ),
+                }
+              : s
+          )
+        );
+        rafScheduled = false;
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -347,20 +366,16 @@ export default function Home() {
                   setAgentStatus(null);
                 }
                 tokenCount++;
-                setSessions((prev) =>
-                  prev.map((s) =>
-                    s.id === activeSessionId
-                      ? {
-                          ...s,
-                          messages: s.messages.map((m) =>
-                            m.id === assistantId ? { ...m, content: m.content + chunk.token } : m
-                          ),
-                        }
-                      : s
-                  )
-                );
+                accumulatedContent += chunk.token;
+
+                // Schedule smooth 60fps frame update so line-by-line and instant text transitions smoothly
+                if (!rafScheduled) {
+                  rafScheduled = true;
+                  requestAnimationFrame(flushContentToState);
+                }
               } else if (chunk.type === "dev_telemetry") {
-                // Developer Mode Telemetry chunk
+                // Ensure all accumulated text is immediately flushed before telemetry attaches
+                flushContentToState();
                 const tTelemetry = Math.round(performance.now() - t0);
                 console.log(`[T+${tTelemetry}ms] 📊 Server Developer Telemetry received:`);
                 console.table({
@@ -390,6 +405,7 @@ export default function Home() {
                   )
                 );
               } else if (chunk.type === "done") {
+                flushContentToState();
                 const totalDuration = Math.round(performance.now() - t0);
                 const streamDuration = firstTokenTime ? (totalDuration - firstTokenTime) : totalDuration;
                 const tokensPerSec = streamDuration > 0 ? ((tokenCount / (streamDuration / 1000)).toFixed(1)) : "0";
@@ -406,6 +422,7 @@ export default function Home() {
           }
         }
       }
+      flushContentToState();
     } catch (err: unknown) {
       const errTime = Math.round(performance.now() - t0);
       console.error(`[ERROR +${errTime}ms] Generation failed:`, err);

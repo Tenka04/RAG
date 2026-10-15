@@ -11,10 +11,11 @@ import json
 import uuid
 import tempfile
 import traceback
+import socket
 from pathlib import Path
 from datetime import datetime
 from collections import deque
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,7 +41,7 @@ app = FastAPI(
     version="1.1.0"
 )
 
-# Enable CORS for Next.js frontend
+# Enable CORS for Next.js frontend and external clients (LAN / friend access)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,51 +75,16 @@ def log_dev_event(level: str, message: str, endpoint: Optional[str] = None, dura
     DEV_LOGS.appendleft(entry)
 
 
-# Request logging middleware
-@app.middleware("http")
-async def developer_logging_middleware(request: Request, call_next):
-    start_time = time.time()
-    endpoint = request.url.path
-    method = request.method
-
+def get_local_ip() -> str:
+    """Detect LAN IP address so friends on the same Wi-Fi can connect."""
     try:
-        response = await call_next(request)
-        duration_ms = round((time.time() - start_time) * 1000, 2)
-        status_code = response.status_code
-
-        # Print formatted request timing to terminal console
-        if endpoint.startswith("/api/"):
-            color = "\033[0;32m" if status_code < 400 else "\033[1;31m"
-            reset = "\033[0m"
-            dim = "\033[2m"
-            bold = "\033[1m"
-            print(f"🌐 [HTTP] {bold}{method:<6}{reset} {endpoint:<26} -> {color}{status_code} OK{reset} {dim}({duration_ms:,.2f} ms){reset}")
-
-        # Log requests to dev logger
-        level = "ERROR" if status_code >= 400 else "INFO"
-        if endpoint.startswith("/api/"):
-            log_dev_event(
-                level=level,
-                message=f"{method} {endpoint} -> HTTP {status_code} ({duration_ms}ms)",
-                endpoint=endpoint,
-                duration_ms=duration_ms,
-                details={"status_code": status_code, "method": method}
-            )
-        return response
-
-    except Exception as exc:
-        duration_ms = round((time.time() - start_time) * 1000, 2)
-        tb_str = traceback.format_exc()
-        print(f"\033[1;31m🚨 [HTTP ERROR] {method} {endpoint} failed in {duration_ms:,.2f} ms: {exc}\033[0m")
-        log_dev_event(
-            level="ERROR",
-            message=f"Unhandled exception in {method} {endpoint}: {str(exc)}",
-            endpoint=endpoint,
-            duration_ms=duration_ms,
-            traceback_str=tb_str,
-            details={"error_type": type(exc).__name__}
-        )
-        raise exc
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 
 # ==============================================================================
@@ -143,6 +109,43 @@ class DevAuthRequest(BaseModel):
 
 class EmbedTestRequest(BaseModel):
     text: str
+
+
+# ── Schemas for Local Model Sharing & OpenAI-Compatible Endpoints ─────────────
+
+class LocalEmbedRequest(BaseModel):
+    text: Optional[str] = None
+    texts: Optional[List[str]] = None
+    model: Optional[str] = None
+
+
+class LocalGenerateRequest(BaseModel):
+    prompt: str
+    system: Optional[str] = None
+    model: Optional[str] = None
+    stream: Optional[bool] = False
+
+
+class LocalRAGRequest(BaseModel):
+    query: str
+    top_k: Optional[int] = 3
+
+
+class OpenAIMessage(BaseModel):
+    role: str
+    content: str
+
+
+class OpenAIChatRequest(BaseModel):
+    model: Optional[str] = "qwen3:4b"
+    messages: List[OpenAIMessage]
+    stream: Optional[bool] = False
+    temperature: Optional[float] = 0.7
+
+
+class OpenAIEmbedRequest(BaseModel):
+    model: Optional[str] = "qwen3-embedding:0.6b"
+    input: Any
 
 
 # ==============================================================================
@@ -174,16 +177,16 @@ def get_status():
 def get_models():
     """Return available models supported by the system (OpenRouter DeepSeek, Ollama Cloud, and Local)."""
     models = [
+        {"id": "qwen3:4b", "name": "Qwen3 4B (Local GPU ⚡ Sub-Second)", "desc": "On-device RTX 3050 Ti • Instant line-by-line streaming", "is_cloud": False},
+        {"id": "direct_synthesis", "name": "Direct Grounded Mode (⚡ Instant 10ms)", "desc": "Zero LLM wait • Instant local document synthesis", "is_cloud": False},
         {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3 (deepseek-chat)", "desc": "OpenRouter • SOTA Speed & Flagship Intelligence", "is_cloud": True},
         {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (deepseek-r1)", "desc": "OpenRouter • Deep Chain-of-Thought Reasoning", "is_cloud": True},
         {"id": "gpt-oss:20b", "name": "Assist Me Cloud 20B (gpt-oss:20b)", "desc": "Free Ollama Cloud • Blazing fast", "is_cloud": True},
         {"id": "gemma4:31b", "name": "Gemma 4 31B (gemma4:31b)", "desc": "Free Ollama Cloud • Deep reasoning", "is_cloud": True},
         {"id": "gpt-oss:120b", "name": "GPT-OSS 120B (gpt-oss:120b)", "desc": "Free Ollama Cloud • Flagship intelligence", "is_cloud": True},
         {"id": "nemotron-3-nano:30b", "name": "Nemotron 30B (nemotron-3-nano:30b)", "desc": "Free Ollama Cloud • Fast datacenter", "is_cloud": True},
-        {"id": "llama3.2:3b", "name": "Local Ollama 3B (llama3.2:3b)", "desc": "On-device GPU/CPU execution", "is_cloud": False},
-        {"id": "direct_synthesis", "name": "Direct Grounded Mode", "desc": "No LLM required • Instant local synthesis", "is_cloud": False},
     ]
-    return {"models": models, "active_model": engine.llm_model}
+    return {"models": models, "active_model": engine.local_model if engine._check_local_ollama_available() else engine.llm_model}
 
 
 @app.post("/api/upload")
@@ -355,6 +358,220 @@ async def chat_stream(req: ChatRequest):
             "X-Accel-Buffering": "no",
         }
     )
+
+
+# ==============================================================================
+# Dedicated Local Model Sharing & OpenAI-Compatible Endpoints
+# (Share with friends over Wi-Fi, LAN, or Tunnels like ngrok/cloudflared)
+# ==============================================================================
+
+@app.get("/api/v1/share-info")
+def get_share_info():
+    """Information and quick-start instructions for friends connecting to this server."""
+    local_ip = get_local_ip()
+    port = 8000
+    base_url = f"http://{local_ip}:{port}"
+    return {
+        "status": "online",
+        "service": "Assist Me Local Model Sharing API",
+        "local_ip": local_ip,
+        "port": port,
+        "base_url": base_url,
+        "interactive_docs": f"{base_url}/docs",
+        "running_models": {
+            "chat_model": engine.local_model,
+            "embedding_model": engine.embedding_model,
+            "local_ollama_host": engine.local_ollama_host,
+            "local_ollama_online": engine._check_local_ollama_available(),
+        },
+        "endpoints": {
+            "generate_chat": f"POST {base_url}/api/v1/generate",
+            "embeddings": f"POST {base_url}/api/v1/embed",
+            "rag_query": f"POST {base_url}/api/v1/rag",
+            "document_upload": f"POST {base_url}/api/upload",
+            "openai_chat": f"POST {base_url}/v1/chat/completions",
+            "openai_embeddings": f"POST {base_url}/v1/embeddings",
+            "openai_models": f"GET {base_url}/v1/models",
+        },
+        "friend_quickstart_curl": {
+            "chat": f'curl -X POST "{base_url}/api/v1/generate" -H "Content-Type: application/json" -d \'{{"prompt": "Hello from my device!"}}\'',
+            "embed": f'curl -X POST "{base_url}/api/v1/embed" -H "Content-Type: application/json" -d \'{{"text": "Sample text to embed"}}\'',
+            "rag": f'curl -X POST "{base_url}/api/v1/rag" -H "Content-Type: application/json" -d \'{{"query": "What is in the document?"}}\'',
+            "openai_sdk": f'import openai; client = openai.OpenAI(base_url="{base_url}/v1", api_key="not-needed")'
+        }
+    }
+
+
+@app.post("/api/v1/embed")
+def local_embedding(req: LocalEmbedRequest):
+    """
+    Generate embeddings using the running local embedding model (e.g. qwen3-embedding:0.6b).
+    Accepts a single string `text` or a list of strings `texts`.
+    """
+    target_text = req.texts if req.texts is not None else (req.text or "")
+    if not target_text:
+        raise HTTPException(status_code=400, detail="Must provide either 'text' or 'texts' to embed.")
+
+    res = engine.embed_local(target_text, model=req.model)
+    return res
+
+
+@app.post("/api/v1/generate")
+def local_generate(req: LocalGenerateRequest):
+    """
+    Generate text using the running local LLM (e.g. qwen3:4b).
+    Supports both non-streaming JSON response and SSE streaming (`stream: true`).
+    """
+    if req.stream:
+        def stream_generator():
+            try:
+                for token in engine.generate_local_stream(prompt=req.prompt, model=req.model, system=req.system):
+                    payload = json.dumps({"token": token})
+                    yield f"data: {payload}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        return StreamingResponse(
+            stream_generator(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+        )
+    else:
+        try:
+            answer = engine.generate_local_sync(prompt=req.prompt, model=req.model, system=req.system)
+            return {
+                "model": req.model or engine.local_model,
+                "response": answer
+            }
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Local LLM error: {str(e)}")
+
+
+@app.post("/api/v1/rag")
+def local_rag_query(req: LocalRAGRequest):
+    """
+    100% Local RAG query: searches ChromaDB with local embeddings,
+    then answers the question using the local LLM.
+    """
+    result = engine.query_local(query=req.query, top_k=req.top_k or 3)
+    return result
+
+
+# ── OpenAI-Compatible Endpoints ───────────────────────────────────────────────
+
+@app.get("/v1/models")
+def openai_list_models():
+    """List available local models in OpenAI-compatible format."""
+    now_ts = int(time.time())
+    return {
+        "object": "list",
+        "data": [
+            {"id": engine.local_model, "object": "model", "created": now_ts, "owned_by": "local-ollama"},
+            {"id": engine.embedding_model, "object": "model", "created": now_ts, "owned_by": "local-ollama"},
+            {"id": "local-rag", "object": "model", "created": now_ts, "owned_by": "assist-me-rag"},
+        ]
+    }
+
+
+@app.post("/v1/chat/completions")
+def openai_chat_completions(req: OpenAIChatRequest):
+    """OpenAI-compatible chat completions endpoint (works with Python openai SDK, LangChain, etc.)."""
+    # Build prompt from messages
+    prompt_parts = []
+    system_prompt = None
+    for msg in req.messages:
+        if msg.role == "system":
+            system_prompt = msg.content
+        else:
+            role_label = "User" if msg.role == "user" else "Assistant"
+            prompt_parts.append(f"{role_label}: {msg.content}")
+    prompt_parts.append("Assistant: ")
+    full_prompt = "\n".join(prompt_parts)
+
+    call_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+    created_ts = int(time.time())
+    model_name = req.model or engine.local_model
+
+    if req.stream:
+        def openai_stream():
+            try:
+                for token in engine.generate_local_stream(prompt=full_prompt, model=model_name, system=system_prompt):
+                    chunk = {
+                        "id": call_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": model_name,
+                        "choices": [
+                            {"index": 0, "delta": {"content": token}, "finish_reason": None}
+                        ]
+                    }
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                # Final finish chunk
+                final_chunk = {
+                    "id": call_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_ts,
+                    "model": model_name,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                }
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                err_chunk = {"error": {"message": str(e), "type": "server_error"}}
+                yield f"data: {json.dumps(err_chunk)}\n\n"
+
+        return StreamingResponse(
+            openai_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+        )
+    else:
+        try:
+            content = engine.generate_local_sync(prompt=full_prompt, model=model_name, system=system_prompt)
+            return {
+                "id": call_id,
+                "object": "chat.completion",
+                "created": created_ts,
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": content},
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": len(full_prompt) // 4,
+                    "completion_tokens": len(content) // 4,
+                    "total_tokens": (len(full_prompt) + len(content)) // 4
+                }
+            }
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Ollama generation failed: {str(e)}")
+
+
+@app.post("/v1/embeddings")
+def openai_embeddings(req: OpenAIEmbedRequest):
+    """OpenAI-compatible embeddings endpoint."""
+    inputs = [req.input] if isinstance(req.input, str) else req.input
+    embed_res = engine.embed_local(inputs, model=req.model)
+    data = []
+    for idx, vec in enumerate(embed_res.get("embeddings", [])):
+        data.append({
+            "object": "embedding",
+            "index": idx,
+            "embedding": vec
+        })
+    return {
+        "object": "list",
+        "data": data,
+        "model": req.model or engine.embedding_model,
+        "usage": {
+            "prompt_tokens": sum(len(x) // 4 for x in inputs if isinstance(x, str)),
+            "total_tokens": sum(len(x) // 4 for x in inputs if isinstance(x, str))
+        }
+    }
 
 
 # ==============================================================================
