@@ -2190,3 +2190,466 @@ input, textarea, select {
   margin-top: -4px;
 }
 
+/* ==========================================================================
+   Generative UI & Visual Widgets (ChatGPT Style)
+   ========================================================================== */
+
+/* 1. Architecture & Flow Diagram Cards */
+.gpt-diagram-card {
+  max-width: 580px;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  margin: 14px 0;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.gpt-diagram-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gpt-diagram-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.gpt-diagram-body {
+  padding: 16px 20px;
+  max-height: 280px;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #141414;
+}
+
+.gpt-diagram-svg-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: auto;
+  max-width: 100%;
+}
+
+.gpt-diagram-svg-container svg {
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: 240px !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.gpt-diagram-loading {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.gpt-diagram-fallback {
+  background: #181818;
+}
+
+/* 2. Comparison & Latency Metric Bars */
+.gpt-comparison-card {
+  max-width: 580px;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.gpt-comparison-item {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.gpt-comparison-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.gpt-comparison-title {
+  color: #f4f4f4;
+  letter-spacing: -0.01em;
+}
+
+.gpt-comparison-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  letter-spacing: 0.03em;
+}
+
+.gpt-comparison-track {
+  width: 100%;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.gpt-comparison-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gpt-comparison-caption {
+  font-size: 12px;
+  color: #8e8e8e;
+  margin-top: 1px;
+}
+
+/* 3. Visual Feature & Media Cards */
+.gpt-visual-cards-container {
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.gpt-visual-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 12px 16px;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.gpt-visual-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #1f1f1f;
+  transform: translateY(-1px);
+}
+
+.gpt-visual-card-media {
+  flex-shrink: 0;
+}
+
+.gpt-visual-card-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gpt-visual-card-icon {
+  width: 22px;
+  height: 22px;
+  color: #10a37f;
+}
+
+.gpt-visual-card-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gpt-visual-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gpt-visual-card-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #f4f4f4;
+  margin: 0;
+}
+
+.gpt-visual-card-desc {
+  font-size: 13.5px;
+  color: #b4b4b4;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ==========================================================================
+   Responsive Adaptations for Chat Widgets & Diagrams
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  /* Diagrams */
+  .gpt-diagram-card {
+    margin: 12px 0;
+    border-radius: 10px;
+    max-width: 100%;
+  }
+
+  .gpt-diagram-body {
+    padding: 12px 14px;
+    max-height: 230px;
+    justify-content: center;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .gpt-diagram-svg-container {
+    width: auto;
+    max-width: 100%;
+    justify-content: center;
+  }
+
+  .gpt-diagram-svg-container svg {
+    max-height: 200px !important;
+    width: auto !important;
+  }
+
+  /* Comparison Widget */
+  .gpt-comparison-card {
+    padding: 14px 16px;
+    margin: 14px 0;
+    gap: 14px;
+    border-radius: 10px;
+  }
+
+  .gpt-comparison-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .gpt-comparison-title {
+    font-size: 13.5px;
+  }
+
+  .gpt-comparison-badge {
+    font-size: 10.5px;
+    padding: 2px 8px;
+  }
+
+  .gpt-comparison-caption {
+    font-size: 11.5px;
+  }
+
+  /* Visual Cards */
+  .gpt-visual-card {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .gpt-visual-card-title {
+    font-size: 14px;
+  }
+
+  .gpt-visual-card-desc {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 520px) {
+  .gpt-visual-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .gpt-visual-card-media {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .gpt-visual-card-img {
+    width: 100%;
+    height: 150px;
+  }
+
+  .gpt-diagram-body {
+    padding: 12px 8px;
+  }
+
+  .gpt-comparison-card {
+    padding: 12px 14px;
+  }
+}
+
+/* ==========================================================================
+   Diagram Fullscreen Overlay Lightbox / Modal
+   ========================================================================== */
+
+.gpt-diagram-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: gptFadeIn 0.2s ease-out;
+}
+
+.gpt-diagram-modal-content {
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  width: 92vw;
+  max-width: 1150px;
+  height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  animation: gptScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gpt-diagram-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.gpt-diagram-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f4f4f4;
+}
+
+.gpt-diagram-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gpt-diagram-modal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d4d4d8;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.gpt-diagram-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.gpt-diagram-modal-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.gpt-diagram-modal-body {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  background: #111111;
+  position: relative;
+}
+
+.gpt-diagram-modal-svg-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.gpt-diagram-modal-svg-wrap svg {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.gpt-diagram-modal-footer {
+  padding: 8px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 11.5px;
+  color: #71717a;
+  text-align: right;
+}
+
+.gpt-diagram-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #a1a1aa;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.gpt-diagram-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.gpt-diagram-body-clickable {
+  cursor: zoom-in;
+  transition: background 0.15s ease;
+}
+
+.gpt-diagram-card:hover .gpt-diagram-body-clickable {
+  background: #161616;
+}
+
+@keyframes gptFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gptScaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+

@@ -353,7 +353,8 @@ async def chat_stream(req: ChatRequest):
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform, must-revalidate",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         }

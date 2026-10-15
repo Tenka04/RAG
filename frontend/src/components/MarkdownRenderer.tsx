@@ -1,10 +1,26 @@
 "use client";
 
 import React, { useState } from "react";
+import { MermaidViewer } from "./widgets/MermaidViewer";
+import { ComparisonWidget } from "./widgets/ComparisonWidget";
+import { VisualCardWidget } from "./widgets/VisualCardWidget";
 
 interface MarkdownRendererProps {
   content: string;
   isStreaming?: boolean;
+}
+
+function normalizeContent(raw: string): string {
+  if (!raw) return "";
+
+  // 1. If LLM outputs ```mermaid flowchart TD, split into ```mermaid\nflowchart TD
+  let text = raw.replace(/```+mermaid\s+([a-zA-Z0-9_-]+[^\n\r]*)/gi, "```mermaid\n$1");
+
+  // 2. Wrap un-fenced widget:comparison [ ... ] or widget:cards [ ... ] if LLM omitted code backticks
+  text = text.replace(/(?:^|\n)(widget:comparison|widget:progress)\s*\n\s*(\[[\s\S]*?\])(?=\n\n|\n[A-Z0-9#]|$)/gi, "\n```$1\n$2\n```\n");
+  text = text.replace(/(?:^|\n)(widget:cards|widget:card-list)\s*\n\s*(\[[\s\S]*?\])(?=\n\n|\n[A-Z0-9#]|$)/gi, "\n```$1\n$2\n```\n");
+
+  return text;
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isStreaming }) => {
@@ -26,64 +42,164 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
     );
   }
 
-  // Split by code fences: ```lang\ncode\n```
+  // Pre-normalize common LLM formatting edge-cases (e.g. ```mermaid flowchart TD or un-fenced widgets)
+  const normalizedContent = normalizeContent(content);
+
+  // Split by code fences: 3+ backticks, flexible info line, CRLF/LF support
   const parts: React.ReactNode[] = [];
-  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
+  const codeBlockRegex = /(`{3,})([^\n\r]*)\r?\n([\s\S]*?)\1/g;
   let lastIndex = 0;
   let blockIdx = 0;
   let match;
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  while ((match = codeBlockRegex.exec(normalizedContent)) !== null) {
     // Text before code block
     if (match.index > lastIndex) {
-      const textChunk = content.slice(lastIndex, match.index);
+      const textChunk = normalizedContent.slice(lastIndex, match.index);
       parts.push(renderFormattedText(textChunk, `text_${lastIndex}`, isStreaming));
     }
 
-    const language = match[1] || "code";
-    const codeSnippet = match[2].trimEnd();
+    const infoLine = (match[2] || "").trim();
+    const [firstToken = "", ...restTokens] = infoLine.split(/\s+/);
+    const rawLang = firstToken.toLowerCase();
+    let codeSnippet = match[3].trimEnd();
+
+    // If info line was "```mermaid flowchart TD", prepend "flowchart TD" to snippet
+    if (rawLang === "mermaid" && restTokens.length > 0) {
+      codeSnippet = restTokens.join(" ") + "\n" + codeSnippet;
+    }
+
+    const normLang = rawLang.replace(/^json:/, "").replace(/[-_]/g, ":");
     const currentBlockIdx = blockIdx++;
 
-    parts.push(
-      <div key={`code_${match.index}`} className="gpt-code-block">
-        <div className="gpt-code-header">
-          <span className="gpt-code-lang">{language}</span>
-          <button
-            type="button"
-            className="gpt-code-copy-btn"
-            onClick={() => handleCopyCode(codeSnippet, currentBlockIdx)}
-          >
-            {copiedIndex === currentBlockIdx ? (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                <span style={{ color: "#10a37f" }}>Copied!</span>
-              </>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <span>Copy code</span>
-              </>
-            )}
-          </button>
+    const isMermaid =
+      normLang === "mermaid" ||
+      normLang === "diagram" ||
+      normLang === "flowchart" ||
+      /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitGraph)\b/i.test(codeSnippet.trim());
+
+    const isComparison =
+      normLang.includes("comparison") ||
+      normLang.includes("progress") ||
+      normLang.includes("timeline");
+
+    const isCards =
+      normLang.includes("card") ||
+      normLang.includes("feature");
+
+    if (isMermaid) {
+      parts.push(
+        <MermaidViewer key={`mermaid_${match.index}`} chart={codeSnippet} />
+      );
+    } else if (isComparison) {
+      try {
+        const cleanedJson = codeSnippet.replace(/^```json/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleanedJson);
+        parts.push(
+          <ComparisonWidget key={`comp_${match.index}`} items={Array.isArray(parsed) ? parsed : [parsed]} />
+        );
+      } catch {
+        parts.push(
+          <div key={`comp_err_${match.index}`} className="gpt-diagram-card">
+            <pre className="gpt-code-pre"><code>{codeSnippet}</code></pre>
+          </div>
+        );
+      }
+    } else if (isCards) {
+      try {
+        const cleanedJson = codeSnippet.replace(/^```json/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleanedJson);
+        parts.push(
+          <VisualCardWidget key={`cards_${match.index}`} items={Array.isArray(parsed) ? parsed : [parsed]} />
+        );
+      } catch {
+        parts.push(
+          <div key={`cards_err_${match.index}`} className="gpt-diagram-card">
+            <pre className="gpt-code-pre"><code>{codeSnippet}</code></pre>
+          </div>
+        );
+      }
+    } else {
+      parts.push(
+        <div key={`code_${match.index}`} className="gpt-code-block">
+          <div className="gpt-code-header">
+            <span className="gpt-code-lang">{rawLang || "code"}</span>
+            <button
+              type="button"
+              className="gpt-code-copy-btn"
+              onClick={() => handleCopyCode(codeSnippet, currentBlockIdx)}
+            >
+              {copiedIndex === currentBlockIdx ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10a37f" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span style={{ color: "#10a37f" }}>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span>Copy code</span>
+                </>
+              )}
+            </button>
+          </div>
+          <pre className="gpt-code-pre">
+            <code>{codeSnippet}</code>
+          </pre>
         </div>
-        <pre className="gpt-code-pre">
-          <code>{codeSnippet}</code>
-        </pre>
-      </div>
-    );
+      );
+    }
 
     lastIndex = match.index + match[0].length;
   }
 
-  // Trailing text
-  if (lastIndex < content.length) {
-    const trailing = content.slice(lastIndex);
-    parts.push(renderFormattedText(trailing, `text_${lastIndex}`, isStreaming));
+  // Trailing text and safe streaming handling for unclosed blocks
+  if (lastIndex < normalizedContent.length) {
+    const trailing = normalizedContent.slice(lastIndex);
+    const unclosedMatch = trailing.match(/(`{3,})([^\n\r]*)\r?\n([\s\S]*)$/);
+
+    if (unclosedMatch && isStreaming) {
+      const textBefore = trailing.slice(0, unclosedMatch.index);
+      if (textBefore) {
+        parts.push(renderFormattedText(textBefore, `text_${lastIndex}`, isStreaming));
+      }
+      const unclosedInfo = (unclosedMatch[2] || "").toLowerCase();
+      if (unclosedInfo.includes("mermaid") || unclosedInfo.includes("flowchart") || unclosedInfo.includes("diagram")) {
+        parts.push(
+          <div key="unclosed_mermaid" className="gpt-diagram-card gpt-diagram-fallback">
+            <div className="gpt-diagram-header">
+              <span className="gpt-diagram-badge">Drawing Diagram...</span>
+            </div>
+            <div className="gpt-diagram-loading">
+              <span className="gpt-pulse-dot" />
+              <span className="gpt-pulse-dot" />
+              <span className="gpt-pulse-dot" />
+            </div>
+          </div>
+        );
+      } else if (unclosedInfo.includes("widget")) {
+        parts.push(
+          <div key="unclosed_widget" className="gpt-diagram-card gpt-diagram-fallback">
+            <div className="gpt-diagram-header">
+              <span className="gpt-diagram-badge">Loading Visual...</span>
+            </div>
+            <div className="gpt-diagram-loading">
+              <span className="gpt-pulse-dot" />
+              <span className="gpt-pulse-dot" />
+              <span className="gpt-pulse-dot" />
+            </div>
+          </div>
+        );
+      } else {
+        parts.push(renderFormattedText(trailing, `text_${lastIndex}`, isStreaming));
+      }
+    } else {
+      parts.push(renderFormattedText(trailing, `text_${lastIndex}`, isStreaming));
+    }
   }
 
   return (

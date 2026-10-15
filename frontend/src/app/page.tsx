@@ -284,7 +284,13 @@ export default function Home() {
     let tokenCount = 0;
 
     try {
-      const response = await fetch("/api/chat", {
+      const chatEndpoint =
+        typeof window !== "undefined" &&
+        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+          ? "http://127.0.0.1:8000/api/chat"
+          : "/api/chat";
+
+      const response = await fetch(chatEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortController.signal,
@@ -307,7 +313,6 @@ export default function Home() {
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
       let accumulatedContent = "";
-      let rafScheduled = false;
 
       const flushContentToState = () => {
         const textToFlush = accumulatedContent;
@@ -323,7 +328,6 @@ export default function Home() {
               : s
           )
         );
-        rafScheduled = false;
       };
 
       while (true) {
@@ -368,11 +372,8 @@ export default function Home() {
                 tokenCount++;
                 accumulatedContent += chunk.token;
 
-                // Schedule smooth 60fps frame update so line-by-line and instant text transitions smoothly
-                if (!rafScheduled) {
-                  rafScheduled = true;
-                  requestAnimationFrame(flushContentToState);
-                }
+                // Immediate flush on every single incoming token for real-time word-by-word streaming
+                flushContentToState();
               } else if (chunk.type === "dev_telemetry") {
                 // Ensure all accumulated text is immediately flushed before telemetry attaches
                 flushContentToState();
