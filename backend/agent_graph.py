@@ -587,8 +587,10 @@ def stream_agent_execution(
         if rag_res.get("bottlenecks"):
             state["bottlenecks"].extend(rag_res["bottlenecks"])
 
-        # Corrective RAG Check: If no documents found in ChromaDB, search Web!
-        if len(state["documents"]) == 0:
+        # Corrective RAG Check: Only trigger web search if query explicitly asks for live/current web info
+        web_keywords = ["latest", "current", "news", "today", "weather", "who is the current", "wikipedia", "browse", "price"]
+        is_live_query = any(kw in query.lower() for kw in web_keywords)
+        if len(state["documents"]) == 0 and is_live_query:
             yield {
                 "type": "agent_action",
                 "agent": "evaluator",
@@ -713,24 +715,9 @@ def stream_agent_execution(
                     first_token_time = round((time.perf_counter() - t_llm_start) * 1000, 2)
                 token_count += 1
                 full_answer_parts.append(token_text)
+                # Instant zero-buffering delivery
+                yield {"type": "token", "token": token_text}
 
-                # Progressive line-by-line delivery for smooth visual onset
-                if lines_delivered < target_prog_lines:
-                    line_buf += token_text
-                    if "\n" in line_buf or len(line_buf) >= 60:
-                        yield {"type": "token", "token": line_buf}
-                        line_buf = ""
-                        lines_delivered += 1
-                        time.sleep(0.02)
-                else:
-                    if line_buf:
-                        yield {"type": "token", "token": line_buf}
-                        line_buf = ""
-                    # Instant text delivery for subsequent tokens
-                    yield {"type": "token", "token": token_text}
-
-            if line_buf:
-                yield {"type": "token", "token": line_buf}
             full_answer = "".join(full_answer_parts)
 
     except Exception as exc:

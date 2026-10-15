@@ -306,7 +306,7 @@ class RAGEngine:
         print(f"    ├─ ⚡ OpenRouter: HTTP {response.status_code} OK received in {http_latency_ms} ms (TTFB / Connection Latency)")
 
         in_reasoning = False
-        for line in response.iter_lines():
+        for line in response.iter_lines(chunk_size=1):
             if not line:
                 continue
             decoded = line.decode("utf-8")
@@ -885,6 +885,27 @@ class RAGEngine:
         from datetime import datetime
         now_str = datetime.now().strftime("%A, %B %d, %Y")
 
+        visual_rules = (
+            "\nVisual Formatting Capabilities:\n"
+            "- When explaining workflows, architectures, network flows, or request lifecycles, illustrate them using a compact ```mermaid block (prefer horizontal 'flowchart LR' or short 3-step 'flowchart TD' with concise labels):\n"
+            "```mermaid\n"
+            "flowchart LR\n"
+            "    A[Client App] --> B[API Gateway]\n"
+            "    B --> C[GPU Inference]\n"
+            "```\n"
+            "- When comparing latencies, benchmarks, or two alternative approaches, you can include a comparison bar widget:\n"
+            "```widget:comparison\n"
+            '[{"title": "Traditional Approach", "badge": "Sync", "percentage": 90, "status": "warning", "caption": "Wait 8s for completion"}, {"title": "Optimized Approach", "badge": "Streaming", "percentage": 20, "status": "success", "caption": "First token in 1.2s"}]\n'
+            "```\n"
+            "- When breaking down key pillars, concepts, or optimizations, you can present them in rich visual cards:\n"
+            "```widget:cards\n"
+            '[{"title": "1. Optimized Infrastructure", "icon": "server", "description": "Summary..."}, {"title": "2. Token Streaming", "icon": "zap", "description": "Summary..."}]\n'
+            "```\n"
+            "- CRITICAL: Always place ``` on its own separate line before and after mermaid or widget blocks.\n"
+            "- Keep diagrams compact (max 3-4 short nodes) so they fit neatly inside the card.\n"
+            "- For standard text, use clean markdown (bold, lists, headers).\n"
+        )
+
         if context_chunks and len(context_chunks) > 0 and not self._is_casual_message(query):
             context_blocks = []
             for i, chunk in enumerate(context_chunks):
@@ -895,14 +916,16 @@ class RAGEngine:
             first_src = context_chunks[0].get("metadata", {}).get("source", "document")
 
             return (
-                f"You are Assist Me. Answer the user question accurately and concisely using the source excerpts below.\n\n"
+                f"You are Assist Me. Answer the user question accurately and concisely using the source excerpts below.\n"
+                f"{visual_rules}\n"
                 f"{context_text}\n\n"
                 f"Question: {query}\n"
                 f"Answer (cite [{first_src}]):"
             )
         else:
             return (
-                f"You are Assist Me. Answer the user question clearly and concisely.\n\n"
+                f"You are Assist Me. Answer the user question clearly, helpfully, and concisely.\n"
+                f"{visual_rules}\n"
                 f"Question: {query}\n"
                 f"Answer:"
             )
@@ -1140,11 +1163,7 @@ class RAGEngine:
                     for w in fallback_text.split(" "):
                         yield w + " "
 
-        # Smooth line-by-line onset then instant text delivery
-        line_buffer = ""
-        lines_delivered = 0
-        target_progressive_lines = 2  # Deliver first 2 lines smoothly, then stream instantly
-
+        # Zero-latency instant token streaming
         for token in token_stream_generator():
             if first_token_time is None:
                 first_token_time = time.perf_counter()
@@ -1152,23 +1171,8 @@ class RAGEngine:
                 print(f"    ├─ 💬 Time-To-First-Token (TTFT): {ttft_ms} ms (First token yielded to user)")
 
             token_count += 1
-
-            if lines_delivered < target_progressive_lines:
-                line_buffer += token
-                if "\n" in line_buffer or len(line_buffer) >= 60:
-                    yield {"type": "token", "token": line_buffer}
-                    line_buffer = ""
-                    lines_delivered += 1
-                    time.sleep(0.02)  # Buttery smooth 20ms human-friendly line cadence
-            else:
-                if line_buffer:
-                    yield {"type": "token", "token": line_buffer}
-                    line_buffer = ""
-                # Instant text mode: stream remaining tokens immediately with zero delay
-                yield {"type": "token", "token": token}
-
-        if line_buffer:
-            yield {"type": "token", "token": line_buffer}
+            # Yield every token immediately to client with zero artificial latency
+            yield {"type": "token", "token": token}
 
         t_llm_end = time.perf_counter()
         total_llm_ms = round((t_llm_end - t_llm_start) * 1000, 2)
