@@ -124,14 +124,13 @@ class RAGEngine:
         ollama_api_key: Optional[str] = None,
     ):
         if persist_dir is None:
-            backend_chroma = Path(__file__).resolve().parent / "chroma_db"
-            root_chroma = Path(__file__).resolve().parent.parent / "chroma_db"
-            if backend_chroma.exists():
-                persist_dir = str(backend_chroma)
-            elif root_chroma.exists():
-                persist_dir = str(root_chroma)
+            # Enforce single, canonical ChromaDB persistence directory in backend/chroma_db.
+            # Avoids split-brain desynchronization between root and backend directories.
+            env_dir = os.environ.get("CHROMA_PERSIST_DIR")
+            if env_dir:
+                persist_dir = str(Path(env_dir).resolve())
             else:
-                persist_dir = str(backend_chroma)
+                persist_dir = str((Path(__file__).resolve().parent / "chroma_db").resolve())
 
         self.persist_dir = persist_dir
         self.collection_name = collection_name
@@ -175,6 +174,9 @@ class RAGEngine:
             metadata={"description": "RAG document embeddings collection"}
         )
 
+        # Self-healing: Prevent and heal split-brain database desynchronization
+        self._sync_legacy_root_db()
+
         # Default embedding fallback helper & status caching
         self._fallback_embedder = None
         self._ollama_avail_cache = None       # Tuple[bool, float] (cloud)
@@ -198,6 +200,57 @@ class RAGEngine:
                 pass
 
         threading.Thread(target=_warmup_background, daemon=True).start()
+
+    def _sync_legacy_root_db(self):
+        """
+        Heal legacy split-brain database desynchronization:
+        If a legacy root 'chroma_db' directory exists and is distinct from self.persist_dir,
+        seamlessly migrate any orphan chunks into the canonical database so no documents are lost.
+        """
+        try:
+            legacy_root = (Path(__file__).resolve().parent.parent / "chroma_db").resolve()
+            canonical = Path(self.persist_dir).resolve()
+            # If legacy_root is a junction or symlink pointing to canonical, they resolve to the exact same path.
+            if legacy_root.exists() and legacy_root != canonical:
+                legacy_client = chromadb.PersistentClient(path=str(legacy_root))
+                existing_colls = [c.name for c in legacy_client.list_collections()]
+                if self.collection_name in existing_colls:
+                    legacy_col = legacy_client.get_collection(self.collection_name)
+                    legacy_count = legacy_col.count()
+                    if legacy_count > 0:
+                        legacy_data = legacy_col.get(include=["embeddings", "metadatas", "documents"])
+                        curr_ids = set(self.collection.get()["ids"])
+                        missing_indices = [
+                            i for i, doc_id in enumerate(legacy_data["ids"])
+                            if doc_id not in curr_ids
+                        ]
+                        if missing_indices:
+                            migrated_ids = [legacy_data["ids"][i] for i in missing_indices]
+                            migrated_docs = [legacy_data["documents"][i] for i in missing_indices]
+                            migrated_metas = [legacy_data["metadatas"][i] for i in missing_indices]
+                            migrated_embs = (
+                                [legacy_data["embeddings"][i] for i in missing_indices]
+                                if legacy_data.get("embeddings") is not None and len(legacy_data["embeddings"]) == len(legacy_data["ids"])
+                                else None
+                            )
+                            print(f"🔄 [SPLIT-BRAIN HEALER] Migrating {len(migrated_ids)} orphan chunk(s) from legacy root DB to canonical DB...")
+                            if migrated_embs:
+                                self.collection.upsert(
+                                    ids=migrated_ids,
+                                    documents=migrated_docs,
+                                    metadatas=migrated_metas,
+                                    embeddings=migrated_embs
+                                )
+                            else:
+                                self.collection.upsert(
+                                    ids=migrated_ids,
+                                    documents=migrated_docs,
+                                    metadatas=migrated_metas
+                                )
+                            print(f"✅ [SPLIT-BRAIN HEALER] Successfully migrated {len(migrated_ids)} chunks. Canonical total: {self.collection.count()}")
+        except Exception as e:
+            # Non-blocking safeguard so normal startup is never impeded
+            print(f"⚠️ [SPLIT-BRAIN HEALER] Notice during legacy DB check: {e}")
 
     def _check_ollama_available(self) -> bool:
         """Check if remote Ollama service is accessible with 15-second TTL cache and 2s timeout."""
@@ -858,6 +911,48 @@ class RAGEngine:
         return False
 
     @staticmethod
+    def _filter_by_relative_distance(
+        raw_sources: List[Dict[str, Any]],
+        relative_ratio: float = 1.75,
+        margin: float = 0.5
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter retrieved sources using relative rank and distance thresholds instead of a hardcoded
+        absolute cutoff (such as <= 1.45).
+        
+        Hardcoded absolute distance cutoffs fail across different embedding dimensions (384d vs 1024d)
+        and non-normalized vectors, causing false-negative drops where relevant chunks are discarded.
+        
+        This relative filter:
+        1. Always retains the best-matching candidate(s).
+        2. Filters out distant outliers whose distance exceeds (best_dist * relative_ratio + margin).
+        3. Never returns an empty list if viable candidates exist.
+        """
+        if not raw_sources:
+            return []
+
+        # Sort by raw_distance ascending (or score descending)
+        sorted_sources = sorted(
+            raw_sources,
+            key=lambda x: (x.get("raw_distance", float("inf")), -x.get("score", 0.0))
+        )
+
+        best_dist = sorted_sources[0].get("raw_distance")
+        if best_dist is None or best_dist >= 999.0:
+            # Fall back to score-based threshold
+            best_score = max(s.get("score", 0.0) for s in sorted_sources)
+            if best_score <= 0.0:
+                return sorted_sources[:3]
+            return [s for s in sorted_sources if s.get("score", 0.0) >= best_score * 0.4]
+
+        # Dynamic cutoff: allow candidates close to the best candidate
+        cutoff = (best_dist * relative_ratio) + margin
+        filtered = [s for s in sorted_sources if s.get("raw_distance", float("inf")) <= cutoff]
+
+        # Ensure we always keep at least the top candidate if available
+        return filtered if filtered else [sorted_sources[0]]
+
+    @staticmethod
     def _get_quick_system_answer(query: str) -> Optional[str]:
         """Instant sub-millisecond answer for local system date, time, and basic clock queries."""
         q = query.strip().lower().rstrip("!.,?").strip()
@@ -1031,8 +1126,9 @@ class RAGEngine:
             print(f"\n [Step 2/5] Vector Embedding & ChromaDB Retrieval")
             retrieval_data = self.retrieve(query, top_k=top_k, verbose=True)
             raw_sources = retrieval_data["chunks"]
-            # Filter sources to only include chunks within meaningful semantic distance
-            sources = [s for s in raw_sources if s.get("raw_distance", 2.0) <= 1.45]
+            # Rank-based filtering: keep chunks within a relative distance of the best match
+            # instead of a hardcoded absolute threshold that varies with embedding dimensionality
+            sources = self._filter_by_relative_distance(raw_sources)
             retrieval_ms = retrieval_data["retrieval_ms"]
             embedding_ms = retrieval_data["embedding_ms"]
             vector_search_ms = retrieval_data.get("vector_search_ms", 0.0)
@@ -1283,7 +1379,7 @@ class RAGEngine:
         if not is_casual and doc_count > 0:
             retrieval_data = self.retrieve(query, top_k=top_k, verbose=True)
             raw_sources = retrieval_data["chunks"]
-            sources = [s for s in raw_sources if s.get("raw_distance", 2.0) <= 1.45]
+            sources = self._filter_by_relative_distance(raw_sources)
             embedding_ms = retrieval_data["embedding_ms"]
             vector_search_ms = retrieval_data.get("vector_search_ms", 0.0)
             steps.append({"name": "2. Query Vector Embedding", "duration_ms": embedding_ms})

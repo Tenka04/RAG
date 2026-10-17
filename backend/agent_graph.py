@@ -345,8 +345,9 @@ class RAGAgentGraph:
 
         retrieval_data = self.engine.retrieve(query, top_k=top_k, verbose=False)
         raw_sources = retrieval_data.get("chunks", [])
-        # Apply semantic distance threshold
-        sources = [s for s in raw_sources if s.get("raw_distance", 2.0) <= 1.45]
+        # Rank-based filtering: keep chunks within a relative distance of the best match
+        # instead of a hardcoded absolute threshold that varies with embedding dimensionality
+        sources = self.engine._filter_by_relative_distance(raw_sources)
 
         duration_ms = round((time.perf_counter() - t_start) * 1000, 2)
         step = {
